@@ -1,3 +1,4 @@
+// app/page.tsx
 "use client";
 
 import React, { useRef, useState, useEffect, useMemo } from "react";
@@ -9,31 +10,33 @@ import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import * as THREE from "three";
 
 // =====================================================================
-// 1. データ定義
+// 1. データ定義 (Updated Content)
 // =====================================================================
 
 const PROFILE_DATA = {
   name: "KPIA_SYSTEM",
-  ver: "22.0.0",
+  ver: "22.1.0",
   bio: "整理、ハック、そして逸脱。\n秩序あるノイズを構築する。",
   links: [
-    { label: "Twitter (X)", url: "https://twitter.com/" },
-    { label: "SoundCloud", url: "https://soundcloud.com/" },
-    { label: "YouTube", url: "https://youtube.com/" },
-    { label: "Contact", url: "mailto:contact@kpia.universe" },
+    { label: "YouTube", url: "https://www.youtube.com/@popKpia" },
+    { label: "X (Twitter)", url: "https://x.com/takt_min" },
+    { label: "SoundCloud", url: "https://soundcloud.com/user-376655816" },
+    { label: "Instagram", url: "https://www.instagram.com/popkpia/" },
+    { label: "Niconico", url: "https://www.nicovideo.jp/user/141136171" },
+    { label: "TikTok", url: "https://www.tiktok.com/@popkpia" },
+    { label: "Contact", url: "mailto:Kpia0222@gmail.com" },
   ]
 };
 
 const LIVE_INFO_DATA = [
-  { date: "2026.02.14", title: "VALENTINE NOISE", location: "Tokyo, WWW", type: "LIVE" },
-  { date: "2026.03.03", title: "HINA-MATSURI BASS", location: "Osaka, CIRCUS", type: "DJ" },
-  { date: "2026.04.01", title: "APRIL FOOL GLITCH", location: "Virtual Space", type: "STREAM" },
+  { date: "2025.01.26", title: "27dot RELEASE LIVE", location: "函館ARARA", type: "LIVE", detail: "OPEN 17:30 / START 18:00\nADV ¥2,000 / DOOR ¥2,500" },
+  { date: "2025.02.xx", title: "DJ Event (Feb)", location: "TBA", type: "DJ", detail: "Info Coming Soon" },
+  { date: "2025.03.xx", title: "DJ Event (Mar)", location: "TBA", type: "DJ", detail: "Info Coming Soon" },
 ];
 
-const SCHEDULE_DATA = [
-  { date: "2026.01.20", category: "RELEASE", text: "New Single Digital Release" },
-  { date: "2026.01.25", category: "VIDEO", text: "MV Premiere on YouTube" },
-  { date: "2026.02.01", category: "SHOP", text: "Merchandise Pre-order Start" },
+const RELEASE_DATA = [
+  { date: "2025.01.26", category: "ALBUM", text: "New Album '27dot' Release" },
+  { date: "TBA", category: "INFO", text: "Teaser PV & Key Visual Coming Soon" },
 ];
 
 type StarType = 'original' | 'cover' | 'article' | 'draft';
@@ -86,7 +89,7 @@ const generateGalaxy = (): StarData[] => {
       orbitSpeed: 0.05 + Math.random() * 0.05,
       lastPlayed: Date.now(),
       isDevourer: i === 3,
-      youtubeId: isKp001 ? "eh8noQsIhjg" : undefined
+      youtubeId: isKp001 ? "eh8noQsIhjg" : undefined // Sample ID
     });
   }
   for (let i = 0; i < 20; i++) {
@@ -170,10 +173,10 @@ function useKpiaSound() {
       await globalTone.start();
       if (isMicActive) {
           if (globalMic) { globalMic.close(); globalMic.disconnect(); globalMic = null; }
-          setIsMicActive(false); alert("Audio Sensor OFF");
+          setIsMicActive(false); alert("DNA Sensor OFF");
       } else {
           try {
-              globalMic = new globalTone.UserMedia(); await globalMic.open(); globalMic.connect(globalAnalyser); setIsMicActive(true); alert("Audio Sensor ON");
+              globalMic = new globalTone.UserMedia(); await globalMic.open(); globalMic.connect(globalAnalyser); setIsMicActive(true); alert("DNA Sensor ON");
           } catch (e) { alert("Microphone access denied."); }
       }
   };
@@ -382,11 +385,20 @@ function DynamicFlowLine({ startStar, endStar }: { startStar: StarData, endStar:
 
 function CameraManager({ mode, targetStar, controlsRef }: { mode: 'FREE' | 'OVERVIEW' | 'LANDING', targetStar: StarData | null, controlsRef: any }) {
   const { camera } = useThree();
+  
   useEffect(() => {
     if (!controlsRef.current) return;
-    if (mode === 'OVERVIEW') { controlsRef.current.target.set(0, 0, 0); camera.position.set(0, 150, 200); } 
-    else if (mode === 'FREE') { controlsRef.current.target.set(0, 0, 0); }
+    if (mode === 'OVERVIEW') { 
+        // Overviewモード: 位置は高くするが、操作は奪わない (OrbitControlsは維持)
+        // resetはせず、位置だけスムーズに移動させる
+        camera.position.set(0, 150, 200);
+        controlsRef.current.target.set(0, 0, 0); 
+    } else if (mode === 'FREE') { 
+        // Freeモードに戻っても、特に位置をリセットする必要はない
+        controlsRef.current.target.set(0, 0, 0); 
+    }
   }, [mode, camera, controlsRef]);
+
   useFrame((state) => {
     if (mode === 'LANDING' && targetStar && controlsRef.current) {
         controlsRef.current.target.lerp(getStarPosition(targetStar, state.clock.getElapsedTime()), 0.1);
@@ -399,6 +411,7 @@ function SpectatorControls({ active }: { active: boolean }) {
   const [, get] = useKeyboardControls();
   const { camera } = useThree();
   useFrame(() => {
+    // Overviewモードでも自由に動けるようにするなら active 条件を変更しても良い
     if (!active) return;
     const { forward, backward, left, right, up, down } = get();
     const speed = 0.8;
@@ -485,14 +498,16 @@ export default function Home() {
   const [history, setHistory] = useState<string[]>([]);
   const [starStats, setStarStats] = useState<{[key:string]:number}>({});
   const [isFeeding, setIsFeeding] = useState(false);
-  const [savedRoutes, setSavedRoutes] = useState<string[]>([]);
+  
+  // Setlist State
+  const [setlist, setSetlist] = useState<string[]>([]);
+  
   const [cameraMode, setCameraMode] = useState<'FREE' | 'OVERVIEW' | 'LANDING'>('FREE');
   const [selectedStar, setSelectedStar] = useState<StarData | null>(null);
   const [popupStar, setPopupStar] = useState<StarData | null>(null);
   const popupTimer = useRef<NodeJS.Timeout | null>(null);
   const controlsRef = useRef<any>(null); 
   
-  // スマホ判定 (画面幅)
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTab, setMobileTab] = useState<'INFO' | 'DATA' | 'CMD'>('INFO');
 
@@ -505,6 +520,12 @@ export default function Home() {
       }
   }, []);
 
+  // Initialize Setlist from LocalStorage
+  useEffect(() => {
+      const saved = localStorage.getItem("kpia_setlist");
+      if (saved) setSetlist(JSON.parse(saved));
+  }, [hasEntered]);
+
   const handleHover = (star: StarData) => { if (popupTimer.current) clearTimeout(popupTimer.current); setPopupStar(star); };
   const handleLeave = () => { popupTimer.current = setTimeout(() => { setPopupStar(null); }, 3000); };
   const handleSelect = (id: string, type: StarType) => {
@@ -515,15 +536,24 @@ export default function Home() {
     setHistory(prev => [...prev, id]);
   };
 
-  const saveRoute = () => {
-    if (history.length === 0) { alert("Route is empty."); return; }
-    const routeId = `Kp-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-    localStorage.setItem(routeId, JSON.stringify({ history, stats: starStats }));
-    setSavedRoutes(prev => [...prev, routeId]); alert(`Saved: ${routeId}`);
+  // Setlist Functions
+  const addToSetlist = (id: string) => {
+      if (!setlist.includes(id)) {
+          const newSet = [...setlist, id];
+          setSetlist(newSet);
+          // Auto save
+          localStorage.setItem("kpia_setlist", JSON.stringify(newSet));
+      }
   };
-  const loadRoute = (id: string) => {
-    const saved = localStorage.getItem(id); if (!saved) return;
-    const data = JSON.parse(saved); setHistory(data.history); setStarStats(data.stats || {}); alert(`Loaded: ${id}`);
+  const saveSetlist = () => {
+      localStorage.setItem("kpia_setlist", JSON.stringify(setlist));
+      alert("Setlist Saved to DNA.");
+  };
+  const clearSetlist = () => {
+      if(confirm("Clear current setlist?")) {
+          setSetlist([]);
+          localStorage.removeItem("kpia_setlist");
+      }
   };
 
   useEffect(() => {
@@ -547,8 +577,6 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
   }, [hasEntered, showTerminal, terminalIndex, cameraMode, stars, popupStar, selectedStar, history, starStats, toggleMic]);
 
-  useEffect(() => { if (typeof window !== "undefined") { const keys = Object.keys(localStorage).filter(k => k.startsWith("Kp-")); setSavedRoutes(keys); } }, [hasEntered]);
-
   return (
     <KeyboardControls map={controlsMap}>
       <main className="h-screen w-full bg-black overflow-hidden relative">
@@ -567,7 +595,7 @@ export default function Home() {
             <Environment preset="city" />
             <Grid position={[0, -30, 0]} args={[400, 400]} cellSize={5} cellThickness={0.5} cellColor="#222222" sectionSize={25} sectionThickness={1} sectionColor="#444444" fadeDistance={200} />
             <CameraManager mode={cameraMode} targetStar={selectedStar} controlsRef={controlsRef} />
-            <SpectatorControls active={cameraMode === 'FREE'} />
+            <SpectatorControls active={true} /> {/* 常に操作可能にする */}
             <OrbitControls ref={controlsRef} enableZoom={true} enablePan={false} rotateSpeed={0.5} dampingFactor={0.1} maxDistance={300} enabled={true} />
             <GiantOrganicRNA isFeeding={isFeeding} />
             <GalaxySystem stars={stars} starStats={starStats} onSelect={handleSelect} onHover={handleHover} onLeave={handleLeave} />
@@ -597,7 +625,7 @@ export default function Home() {
             </button>
         )}
 
-        {/* MOBILE TABS (Visible only when Terminal is ON & Mobile) */}
+        {/* MOBILE TABS */}
         {hasEntered && showTerminal && isMobile && (
             <div className="absolute top-16 right-4 z-50 flex flex-col gap-2 font-mono">
                 <button onClick={() => setMobileTab('INFO')} className={`px-2 py-1 text-xs border ${mobileTab==='INFO' ? 'bg-orange-500 text-black border-orange-500' : 'bg-black/80 text-orange-500 border-gray-700'}`}>INFO</button>
@@ -609,10 +637,10 @@ export default function Home() {
         {/* HUD UI (Desktop: All / Mobile: Tabbed) */}
         {hasEntered && showTerminal && (
           <div className="absolute inset-0 pointer-events-none">
-            {/* Header (Always) */}
+            {/* Header */}
             <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-start bg-gradient-to-b from-black/90 to-transparent">
                <div className="text-orange-500 font-mono tracking-widest"><h2 className="text-xl font-bold">KPIA.SYSTEM</h2><span className="text-[10px] opacity-70">VER {PROFILE_DATA.ver} // {cameraMode}</span></div>
-               {!isMobile && <div className="text-right text-[10px] font-mono text-gray-500">UPTIME: ∞<br/>STATUS: STABLE</div>}
+               {!isMobile && <div className="text-right text-[10px] font-mono text-gray-500">UPTIME: ∞<br/>DNA: {isMicActive ? "ACTIVE" : "STANDBY"}</div>}
             </div>
 
             {/* LEFT PANEL (INFO) */}
@@ -627,42 +655,83 @@ export default function Home() {
                         </div>
                         <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
                             <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ LIVE INFO ]</h3>
-                            <div className="space-y-3">{LIVE_INFO_DATA.map((item, i) => (<div key={i} className="flex gap-3 text-xs border-b border-gray-800 pb-2"><div className="flex flex-col items-center justify-center bg-gray-900 px-2 py-1 border border-gray-700 w-12 text-center"><span className="text-[10px] text-gray-500">{item.date.split('.')[1]}</span><span className="text-lg font-bold text-orange-500 leading-none">{item.date.split('.')[2]}</span></div><div className="flex-1"><div className="text-white font-bold">{item.title}</div><div className="flex justify-between text-[10px] text-gray-400 mt-1"><span>@ {item.location}</span><span className="text-orange-400">[{item.type}]</span></div></div></div>))}</div>
+                            <div className="space-y-3">{LIVE_INFO_DATA.map((item, i) => (<div key={i} className="flex gap-3 text-xs border-b border-gray-800 pb-2"><div className="flex flex-col items-center justify-center bg-gray-900 px-2 py-1 border border-gray-700 w-12 text-center"><span className="text-[10px] text-gray-500">{item.date.split('.')[1]}</span><span className="text-lg font-bold text-orange-500 leading-none">{item.date.split('.')[2]}</span></div><div className="flex-1"><div className="text-white font-bold">{item.title}</div><div className="text-[10px] text-gray-400 mt-1 whitespace-pre-line">{item.detail}</div><div className="text-[10px] text-orange-400 text-right mt-1">[{item.type}]</div></div></div>))}</div>
                         </div>
                         <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
-                            <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ SCHEDULE ]</h3>
-                            <div className="space-y-2">{SCHEDULE_DATA.map((item, i) => (<div key={i} className="text-xs flex gap-2"><span className="text-gray-500">{item.date}</span><span className="border border-gray-700 px-1 text-[10px] text-orange-300">{item.category}</span><span className="text-gray-300">{item.text}</span></div>))}</div>
+                            <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ RELEASES ]</h3>
+                            <div className="space-y-2">{RELEASE_DATA.map((item, i) => (<div key={i} className="text-xs flex flex-col gap-1 border-b border-gray-800 pb-1 mb-1"><div className="flex justify-between"><span className="text-gray-500">{item.date}</span><span className="border border-gray-700 px-1 text-[10px] text-orange-300">{item.category}</span></div><span className="text-gray-300">{item.text}</span></div>))}</div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* RIGHT PANEL (DATA) */}
+            {/* RIGHT PANEL (DATA & SETLIST) */}
             {(!isMobile || mobileTab === 'DATA') && (
-                <div className={`absolute top-20 right-4 md:right-8 ${isMobile ? 'w-64' : 'w-72'} h-[60vh] font-mono text-orange-500 pointer-events-auto flex flex-col`}>
-                    <div className="bg-black/70 border-r-2 border-orange-500 backdrop-blur-sm flex-1 overflow-hidden flex flex-col">
+                <div className={`absolute top-20 right-4 md:right-8 ${isMobile ? 'w-64' : 'w-72'} h-[70vh] font-mono text-orange-500 pointer-events-auto flex flex-col gap-4`}>
+                    
+                    {/* Star Database */}
+                    <div className="bg-black/70 border-r-2 border-orange-500 backdrop-blur-sm flex-1 overflow-hidden flex flex-col h-1/2">
                         <h3 className="p-2 text-xs font-bold border-b border-gray-800 bg-black/80">[ STAR DATABASE ]</h3>
-                        <div className="flex-1 overflow-y-auto p-2 no-scrollbar"><ul className="space-y-1">{stars.map((s, i) => { let typeColor = "text-orange-500"; if (s.type === 'cover') typeColor = "text-purple-400"; if (s.type === 'article') typeColor = "text-green-400"; if (s.type === 'draft') typeColor = "text-cyan-600"; return (<li key={s.id} className={`text-xs p-1 ${i === terminalIndex ? "bg-orange-900/50" : ""}`} onMouseEnter={() => setTerminalIndex(i)}><button onClick={(e) => { handleSelect(s.id, s.type); e.currentTarget.blur(); }} className={`w-full text-left flex justify-between ${s.isDevourer ? "animate-pulse text-red-500" : typeColor}`}><span>{s.id}</span><span className="opacity-30">{s.type}</span></button></li>) })}</ul></div>
+                        <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
+                            <ul className="space-y-1">
+                                {stars.map((s, i) => { 
+                                    let typeColor = "text-orange-500"; if (s.type === 'cover') typeColor = "text-purple-400"; if (s.type === 'article') typeColor = "text-green-400"; if (s.type === 'draft') typeColor = "text-cyan-600"; 
+                                    return (
+                                        <li key={s.id} className={`text-xs p-1 ${i === terminalIndex ? "bg-orange-900/50" : ""}`} onMouseEnter={() => setTerminalIndex(i)}>
+                                            <div className="flex items-center gap-2">
+                                                <button onClick={(e) => { handleSelect(s.id, s.type); e.currentTarget.blur(); }} className={`flex-1 text-left flex justify-between ${s.isDevourer ? "animate-pulse text-red-500" : typeColor}`}>
+                                                    <span>{s.id}</span>
+                                                    <span className="opacity-30">{s.type}</span>
+                                                </button>
+                                                <button onClick={() => addToSetlist(s.id)} className="text-[10px] px-1 text-gray-500 hover:text-white border border-gray-800 hover:bg-gray-700">+</button>
+                                            </div>
+                                        </li>
+                                    ) 
+                                })}
+                            </ul>
+                        </div>
                     </div>
+
+                    {/* Setlist Section (New) */}
+                    <div className="bg-black/70 border-r-2 border-cyan-500 backdrop-blur-sm flex-1 overflow-hidden flex flex-col h-1/2">
+                         <div className="p-2 border-b border-gray-800 bg-black/80 flex justify-between items-center">
+                            <h3 className="text-xs font-bold text-cyan-400">[ SETLIST / DNA ]</h3>
+                            <div className="flex gap-1">
+                                <button onClick={saveSetlist} className="text-[9px] px-2 py-0.5 border border-cyan-700 text-cyan-500 hover:bg-cyan-900/50">SAVE</button>
+                                <button onClick={clearSetlist} className="text-[9px] px-2 py-0.5 border border-red-700 text-red-500 hover:bg-red-900/50">CLR</button>
+                            </div>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-2 no-scrollbar">
+                            {setlist.length === 0 ? <div className="text-[10px] text-gray-600 text-center mt-4">NO DATA</div> : (
+                                <ul className="space-y-1">
+                                    {setlist.map((id, i) => (
+                                        <li key={i} className="text-xs p-1 bg-white/5 flex justify-between items-center text-cyan-300">
+                                            <span className="flex gap-2">
+                                                <span className="opacity-40 w-4">{i+1}.</span>
+                                                <span>{id}</span>
+                                            </span>
+                                            <button onClick={() => {
+                                                const newSet = [...setlist]; newSet.splice(i, 1); setSetlist(newSet);
+                                            }} className="text-gray-500 hover:text-red-400 px-1">×</button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </div>
+
                 </div>
             )}
 
             {/* BOTTOM PANEL (CMD/CONTROLS) */}
             {(!isMobile || mobileTab === 'CMD') && (
-                <div className={`absolute bottom-8 left-0 w-full px-4 md:px-8 flex ${isMobile ? 'flex-col items-center gap-4' : 'justify-between items-end'} font-mono text-orange-500 pointer-events-auto`}>
-                   
-                   {!isMobile && (
-                       <div className="w-64 bg-black/70 border-t-2 border-orange-500 backdrop-blur-sm p-2"><h3 className="text-[10px] font-bold mb-1 opacity-70">[ SAVED ROUTES ]</h3><div className="max-h-32 overflow-y-auto space-y-1 no-scrollbar">{savedRoutes.length === 0 && <span className="text-[10px] text-gray-600">No data.</span>}{savedRoutes.map(id => <button key={id} onClick={() => loadRoute(id)} className="block w-full text-left text-[10px] px-2 py-1 bg-gray-900 hover:bg-gray-700 text-white rounded">{id}</button>)}</div></div>
-                   )}
-
+                <div className={`absolute bottom-8 left-0 w-full px-4 md:px-8 flex ${isMobile ? 'flex-col items-center gap-4' : 'justify-end items-end'} font-mono text-orange-500 pointer-events-auto`}>
                    <div className={`flex gap-4 items-end ${isMobile ? 'flex-col' : ''}`}>
-                       <button onClick={toggleMic} className={`px-6 py-3 border border-orange-500 text-xs hover:bg-orange-900/50 text-white font-bold transition-all ${isMicActive ? "bg-orange-600" : "bg-black/80"}`}>AUDIO SENSOR {isMicActive ? "[ON]" : "[OFF]"}</button>
+                       <button onClick={toggleMic} className={`px-6 py-3 border border-orange-500 text-xs hover:bg-orange-900/50 text-white font-bold transition-all ${isMicActive ? "bg-orange-600" : "bg-black/80"}`}>DNA {isMicActive ? "[ON]" : "[OFF]"}</button>
                        <button onClick={() => setCameraMode(prev => prev === 'OVERVIEW' ? 'FREE' : 'OVERVIEW')} className={`px-6 py-3 border border-orange-500 text-xs font-bold transition-all ${cameraMode === 'OVERVIEW' ? 'bg-orange-500 text-black' : 'bg-black/80 text-white hover:bg-orange-900/50'}`}>{cameraMode === 'OVERVIEW' ? "EXIT OVERVIEW" : "OVERVIEW [O]"}</button>
                        {popupStar && cameraMode !== 'LANDING' && (<button onClick={() => { handleSelect(popupStar.id, popupStar.type); setCameraMode('LANDING'); setPopupStar(null); }} className="px-6 py-3 bg-black/80 border border-cyan-500 text-xs text-cyan-400 hover:bg-cyan-900/50 font-bold transition-all animate-pulse">LAND [L]</button>)}
                        {cameraMode === 'LANDING' && (<button onClick={() => setCameraMode('FREE')} className="px-6 py-3 bg-red-900/80 border border-red-500 text-xs text-white hover:bg-red-700 font-bold transition-all">ABORT LANDING [L]</button>)}
                    </div>
-
-                   <div className="flex gap-2"><button onClick={saveRoute} className="px-4 py-3 bg-black/80 border border-gray-500 text-xs hover:bg-gray-800 text-gray-300">SAVE</button><button onClick={() => setHistory([])} className="px-4 py-3 bg-black/80 border border-red-900 text-xs text-red-500 hover:bg-red-900/30">CLR</button></div>
                 </div>
             )}
           </div>
@@ -677,7 +746,10 @@ export default function Home() {
                     <div className="aspect-video bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-500 mb-2 text-xs relative pointer-events-auto">
                         {selectedStar.youtubeId ? (<YouTubePlayer videoId={selectedStar.youtubeId} />) : (<span>[ DATA ENCRYPTED - AUDIO SENSOR ONLY ]</span>)}
                     </div>
-                    <p className="text-gray-300 text-xs leading-relaxed">{selectedStar.youtubeId ? "Decryption complete. Accessing media archive." : "No visual data. Analysis mode active."}</p>
+                    <div className="mt-4 flex gap-2">
+                        <button onClick={() => addToSetlist(selectedStar.id)} className="flex-1 bg-cyan-900/50 border border-cyan-500 text-cyan-400 text-xs py-2 hover:bg-cyan-500 hover:text-black transition">ADD TO SETLIST</button>
+                    </div>
+                    <p className="text-gray-300 text-xs leading-relaxed mt-2">{selectedStar.youtubeId ? "Decryption complete. Accessing media archive." : "No visual data. Analysis mode active."}</p>
                 </div>
             </div>
         )}
