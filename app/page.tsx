@@ -14,7 +14,7 @@ import * as THREE from "three";
 
 const PROFILE_DATA = {
   name: "KPIA_SYSTEM",
-  ver: "21.0.0",
+  ver: "22.0.0",
   bio: "整理、ハック、そして逸脱。\n秩序あるノイズを構築する。",
   links: [
     { label: "Twitter (X)", url: "https://twitter.com/" },
@@ -165,29 +165,16 @@ function useKpiaSound() {
 
   const initAudio = async () => { if (globalTone) await globalTone.start(); };
 
-  // マイクのトグル機能
   const toggleMic = async () => {
       if (!globalTone) return;
       await globalTone.start();
-
       if (isMicActive) {
-          if (globalMic) {
-              globalMic.close();
-              globalMic.disconnect();
-              globalMic = null;
-          }
-          setIsMicActive(false);
-          alert("Audio Sensor OFF");
+          if (globalMic) { globalMic.close(); globalMic.disconnect(); globalMic = null; }
+          setIsMicActive(false); alert("Audio Sensor OFF");
       } else {
           try {
-              globalMic = new globalTone.UserMedia();
-              await globalMic.open();
-              globalMic.connect(globalAnalyser);
-              setIsMicActive(true);
-              alert("Audio Sensor ON");
-          } catch (e) {
-              alert("Microphone access denied.");
-          }
+              globalMic = new globalTone.UserMedia(); await globalMic.open(); globalMic.connect(globalAnalyser); setIsMicActive(true); alert("Audio Sensor ON");
+          } catch (e) { alert("Microphone access denied."); }
       }
   };
 
@@ -203,7 +190,6 @@ function useKpiaSound() {
 
 declare global { interface Window { onYouTubeIframeAPIReady: () => void; YT: any; } }
 
-// シークバー付きYouTubeプレイヤー
 function YouTubePlayer({ videoId }: { videoId: string }) {
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -245,16 +231,11 @@ function YouTubePlayer({ videoId }: { videoId: string }) {
         if (!playerRef.current) return;
         if (e.code === "Space") {
             const state = playerRef.current.getPlayerState();
-            if (state === 1) { playerRef.current.pauseVideo(); showFeedback("⏸ PAUSE"); }
-            else { playerRef.current.playVideo(); showFeedback("▶ PLAY"); }
+            if (state === 1) { playerRef.current.pauseVideo(); showFeedback("⏸ PAUSE"); } else { playerRef.current.playVideo(); showFeedback("▶ PLAY"); }
             e.preventDefault();
         }
-        if (e.code === "ArrowRight") {
-            playerRef.current.seekTo(playerRef.current.getCurrentTime() + 5, true); showFeedback("⏩ +5s"); e.preventDefault();
-        }
-        if (e.code === "ArrowLeft") {
-            playerRef.current.seekTo(playerRef.current.getCurrentTime() - 5, true); showFeedback("⏪ -5s"); e.preventDefault();
-        }
+        if (e.code === "ArrowRight") { playerRef.current.seekTo(playerRef.current.getCurrentTime() + 5, true); showFeedback("⏩ +5s"); e.preventDefault(); }
+        if (e.code === "ArrowLeft") { playerRef.current.seekTo(playerRef.current.getCurrentTime() - 5, true); showFeedback("⏪ -5s"); e.preventDefault(); }
     };
     window.addEventListener("keydown", handleKey);
     return () => { clearInterval(interval); window.removeEventListener("keydown", handleKey); };
@@ -263,7 +244,6 @@ function YouTubePlayer({ videoId }: { videoId: string }) {
   const formatTime = (t: number) => { const m = Math.floor(t / 60); const s = Math.floor(t % 60); return `${m}:${s.toString().padStart(2, '0')}`; };
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // シーク機能
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
       if (!playerRef.current || !duration) return;
       const rect = e.currentTarget.getBoundingClientRect();
@@ -277,37 +257,20 @@ function YouTubePlayer({ videoId }: { videoId: string }) {
   return (
       <div className="w-full h-full relative group overflow-hidden rounded-sm border border-cyan-900/50 bg-black">
           <div ref={containerRef} className="w-full h-full absolute inset-0 pointer-events-none" />
-          
-          {feedback && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none animate-ping-short">
-                  <div className="bg-black/70 border border-cyan-500 px-4 py-2 text-cyan-400 font-bold font-mono text-xl tracking-widest shadow-lg shadow-cyan-500/20">{feedback}</div>
-              </div>
-          )}
-
-          {/* UHD Overlay (常時表示) */}
+          {feedback && <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none animate-ping-short"><div className="bg-black/70 border border-cyan-500 px-4 py-2 text-cyan-400 font-bold font-mono text-xl tracking-widest shadow-lg shadow-cyan-500/20">{feedback}</div></div>}
           <div className="absolute inset-0 flex flex-col justify-end p-0 pointer-events-none z-10">
               <div className="bg-black/80 w-full p-2 pointer-events-auto backdrop-blur-sm border-t border-gray-800">
-                  {/* シークバー (クリック可能エリアを広めに取る) */}
                   <div className="w-full h-4 mb-1 cursor-pointer flex items-center group/seek" onClick={handleSeek}>
                       <div className="w-full h-1 bg-gray-700 relative rounded-full overflow-hidden group-hover/seek:h-2 transition-all">
                           <div className="absolute top-0 left-0 h-full bg-cyan-500 shadow-[0_0_8px_#00ffff]" style={{ width: `${progress}%` }} />
                       </div>
                   </div>
-                  
                   <div className="flex justify-between items-center font-mono text-cyan-400 text-[10px] tracking-wider">
                       <div className="flex gap-3 items-center">
-                          <button onClick={() => { 
-                              if(isPlaying) playerRef.current.pauseVideo(); else playerRef.current.playVideo(); 
-                          }} className="hover:text-white cursor-pointer">
-                              {isPlaying ? "⏸" : "▶"}
-                          </button>
+                          <button onClick={() => { if(isPlaying) playerRef.current.pauseVideo(); else playerRef.current.playVideo(); }} className="hover:text-white cursor-pointer">{isPlaying ? "⏸" : "▶"}</button>
                           <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
                       </div>
-                      <div className="flex gap-2 text-gray-500 text-[9px]">
-                          <span>[← -5s]</span>
-                          <span>[SPC]</span>
-                          <span>[+5s →]</span>
-                      </div>
+                      <div className="flex gap-2 text-gray-500 text-[9px]"><span>[← -5s]</span><span>[SPC]</span><span>[+5s →]</span></div>
                   </div>
               </div>
           </div>
@@ -322,7 +285,6 @@ function YouTubePlayer({ videoId }: { videoId: string }) {
 function GiantOrganicRNA({ isFeeding }: { isFeeding: boolean }) {
   const groupRef = useRef<THREE.Group>(null);
   const COUNT = 120; 
-
   const baseStructure = useMemo(() => {
     const temp = [];
     for (let i = 0; i < COUNT; i++) {
@@ -347,9 +309,7 @@ function GiantOrganicRNA({ isFeeding }: { isFeeding: boolean }) {
   useFrame((state) => {
     let freqData: Float32Array | null = null;
     if (globalAnalyser) freqData = globalAnalyser.getValue();
-
     if (groupRef.current) groupRef.current.rotation.y += isFeeding ? 0.02 : 0.002;
-
     if (freqData) {
         baseStructure.forEach((item, i) => {
             const dataIndex = Math.floor((i / COUNT) * 64);
@@ -358,16 +318,12 @@ function GiantOrganicRNA({ isFeeding }: { isFeeding: boolean }) {
             const intensity = volume * volume * 25.0; 
             const offset = item.dir.clone().multiplyScalar(intensity);
             const newPos = item.pos.clone().add(offset);
-
-            const line = lineRefs.current[i];
-            if (line) line.setPoints(newPos, item.baseTip);
-
+            const line = lineRefs.current[i]; if (line) line.setPoints(newPos, item.baseTip);
             const cell = cellRefs.current[i];
             if (cell) {
                 cell.position.copy(newPos);
                 cell.material.color.copy(baseOrange);
                 cell.material.emissive.lerpColors(baseOrange, hotOrange, volume);
-                // ★修正: 発光量を抑える (0.1 ~ 0.8)
                 cell.material.emissiveIntensity = 0.1 + volume * 0.7; 
                 cell.scale.setScalar(4.5 + volume * 2);
             }
@@ -382,7 +338,6 @@ function GiantOrganicRNA({ isFeeding }: { isFeeding: boolean }) {
            <ReactiveLine ref={(el:any) => (lineRefs.current[i] = el)} start={item.pos} end={item.baseTip} isFeeding={isFeeding} />
            <mesh ref={(el) => (cellRefs.current[i] = el)} position={item.pos} scale={4.5}>
               <sphereGeometry args={[1, 16, 16]} />
-              {/* ★修正: 液体金属感(高metalness)とヌメり(適度なroughness) */}
               <meshStandardMaterial color="#ff4400" emissive="#ff4400" emissiveIntensity={0.1} metalness={0.8} roughness={0.2} />
            </mesh>
         </group>
@@ -524,7 +479,7 @@ function GalaxySystem({ stars, starStats, onSelect, onHover, onLeave }: any) {
 export default function Home() {
   const { playNote, initAudio, toggleMic, isMicActive } = useKpiaSound();
   const [hasEntered, setHasEntered] = useState(false);
-  const [showTerminal, setShowTerminal] = useState(true); // 初期表示
+  const [showTerminal, setShowTerminal] = useState(true);
   const [terminalIndex, setTerminalIndex] = useState(0);
   const [stars] = useState<StarData[]>(initialStarData);
   const [history, setHistory] = useState<string[]>([]);
@@ -536,6 +491,19 @@ export default function Home() {
   const [popupStar, setPopupStar] = useState<StarData | null>(null);
   const popupTimer = useRef<NodeJS.Timeout | null>(null);
   const controlsRef = useRef<any>(null); 
+  
+  // スマホ判定 (画面幅)
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'INFO' | 'DATA' | 'CMD'>('INFO');
+
+  useEffect(() => {
+      if (typeof window !== "undefined") {
+          const checkMobile = () => setIsMobile(window.innerWidth < 768);
+          checkMobile();
+          window.addEventListener('resize', checkMobile);
+          return () => window.removeEventListener('resize', checkMobile);
+      }
+  }, []);
 
   const handleHover = (star: StarData) => { if (popupTimer.current) clearTimeout(popupTimer.current); setPopupStar(star); };
   const handleLeave = () => { popupTimer.current = setTimeout(() => { setPopupStar(null); }, 3000); };
@@ -587,7 +555,7 @@ export default function Home() {
         {!hasEntered && (
           <div className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center text-orange-500 font-mono">
             <h1 className="text-4xl font-bold mb-4 tracking-widest glow-text">KPIA.SYSTEM</h1>
-            <p className="text-xs mb-8 text-gray-500">WASD: Move | MOUSE: Look | L: Land | T: HUD | F: Audio</p>
+            <p className="text-xs mb-8 text-gray-500">WASD: Move | MOUSE: Look | L: Land | T: HUD</p>
             <button onClick={() => { setHasEntered(true); initAudio(); }} className="px-8 py-3 border border-orange-500 hover:bg-orange-900/50 text-white transition-all">INITIALIZE SYSTEM</button>
           </div>
         )}
@@ -612,7 +580,6 @@ export default function Home() {
           </Canvas>
         </div>
 
-        {/* POPUP INFO */}
         {hasEntered && popupStar && cameraMode !== 'LANDING' && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-12 pointer-events-none z-20 text-center animate-slide-up">
                 <div className="text-cyan-400 font-bold font-mono tracking-widest text-sm bg-black/80 px-4 py-2 border border-cyan-900 shadow-lg shadow-cyan-900/20">TARGET: {popupStar.id}</div>
@@ -620,10 +587,91 @@ export default function Home() {
             </div>
         )}
 
-        {/* LANDING OVERLAY (Terminalとは独立して表示) */}
+        {/* TERMINAL TOGGLE BUTTON (Mobile/Desktop) */}
+        {hasEntered && (
+            <button 
+                onClick={() => setShowTerminal(prev => !prev)} 
+                className="absolute top-4 right-4 z-50 px-3 py-1 bg-black/80 border border-orange-500 text-orange-500 text-xs font-mono font-bold hover:bg-orange-900/50 transition-all"
+            >
+                [ T ]
+            </button>
+        )}
+
+        {/* MOBILE TABS (Visible only when Terminal is ON & Mobile) */}
+        {hasEntered && showTerminal && isMobile && (
+            <div className="absolute top-16 right-4 z-50 flex flex-col gap-2 font-mono">
+                <button onClick={() => setMobileTab('INFO')} className={`px-2 py-1 text-xs border ${mobileTab==='INFO' ? 'bg-orange-500 text-black border-orange-500' : 'bg-black/80 text-orange-500 border-gray-700'}`}>INFO</button>
+                <button onClick={() => setMobileTab('DATA')} className={`px-2 py-1 text-xs border ${mobileTab==='DATA' ? 'bg-orange-500 text-black border-orange-500' : 'bg-black/80 text-orange-500 border-gray-700'}`}>DATA</button>
+                <button onClick={() => setMobileTab('CMD')} className={`px-2 py-1 text-xs border ${mobileTab==='CMD' ? 'bg-orange-500 text-black border-orange-500' : 'bg-black/80 text-orange-500 border-gray-700'}`}>CMD</button>
+            </div>
+        )}
+
+        {/* HUD UI (Desktop: All / Mobile: Tabbed) */}
+        {hasEntered && showTerminal && (
+          <div className="absolute inset-0 pointer-events-none">
+            {/* Header (Always) */}
+            <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-start bg-gradient-to-b from-black/90 to-transparent">
+               <div className="text-orange-500 font-mono tracking-widest"><h2 className="text-xl font-bold">KPIA.SYSTEM</h2><span className="text-[10px] opacity-70">VER {PROFILE_DATA.ver} // {cameraMode}</span></div>
+               {!isMobile && <div className="text-right text-[10px] font-mono text-gray-500">UPTIME: ∞<br/>STATUS: STABLE</div>}
+            </div>
+
+            {/* LEFT PANEL (INFO) */}
+            {(!isMobile || mobileTab === 'INFO') && (
+                <div className={`absolute top-20 left-4 md:left-8 ${isMobile ? 'w-64' : 'w-80'} max-h-[70vh] overflow-y-auto font-mono text-orange-500 pointer-events-auto no-scrollbar`}>
+                    <div className="flex flex-col gap-6">
+                        <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
+                            <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ USER PROFILE ]</h3>
+                            <div className="text-lg font-bold text-white mb-1">{PROFILE_DATA.name}</div>
+                            <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-line mb-4">{PROFILE_DATA.bio}</p>
+                            <div className="space-y-2">{PROFILE_DATA.links.map((link, i) => (<a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="block text-[10px] p-2 border border-gray-700 hover:bg-orange-900/30 hover:border-orange-500 transition-all text-white">{link.label} ↗</a>))}</div>
+                        </div>
+                        <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
+                            <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ LIVE INFO ]</h3>
+                            <div className="space-y-3">{LIVE_INFO_DATA.map((item, i) => (<div key={i} className="flex gap-3 text-xs border-b border-gray-800 pb-2"><div className="flex flex-col items-center justify-center bg-gray-900 px-2 py-1 border border-gray-700 w-12 text-center"><span className="text-[10px] text-gray-500">{item.date.split('.')[1]}</span><span className="text-lg font-bold text-orange-500 leading-none">{item.date.split('.')[2]}</span></div><div className="flex-1"><div className="text-white font-bold">{item.title}</div><div className="flex justify-between text-[10px] text-gray-400 mt-1"><span>@ {item.location}</span><span className="text-orange-400">[{item.type}]</span></div></div></div>))}</div>
+                        </div>
+                        <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
+                            <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ SCHEDULE ]</h3>
+                            <div className="space-y-2">{SCHEDULE_DATA.map((item, i) => (<div key={i} className="text-xs flex gap-2"><span className="text-gray-500">{item.date}</span><span className="border border-gray-700 px-1 text-[10px] text-orange-300">{item.category}</span><span className="text-gray-300">{item.text}</span></div>))}</div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* RIGHT PANEL (DATA) */}
+            {(!isMobile || mobileTab === 'DATA') && (
+                <div className={`absolute top-20 right-4 md:right-8 ${isMobile ? 'w-64' : 'w-72'} h-[60vh] font-mono text-orange-500 pointer-events-auto flex flex-col`}>
+                    <div className="bg-black/70 border-r-2 border-orange-500 backdrop-blur-sm flex-1 overflow-hidden flex flex-col">
+                        <h3 className="p-2 text-xs font-bold border-b border-gray-800 bg-black/80">[ STAR DATABASE ]</h3>
+                        <div className="flex-1 overflow-y-auto p-2 no-scrollbar"><ul className="space-y-1">{stars.map((s, i) => { let typeColor = "text-orange-500"; if (s.type === 'cover') typeColor = "text-purple-400"; if (s.type === 'article') typeColor = "text-green-400"; if (s.type === 'draft') typeColor = "text-cyan-600"; return (<li key={s.id} className={`text-xs p-1 ${i === terminalIndex ? "bg-orange-900/50" : ""}`} onMouseEnter={() => setTerminalIndex(i)}><button onClick={(e) => { handleSelect(s.id, s.type); e.currentTarget.blur(); }} className={`w-full text-left flex justify-between ${s.isDevourer ? "animate-pulse text-red-500" : typeColor}`}><span>{s.id}</span><span className="opacity-30">{s.type}</span></button></li>) })}</ul></div>
+                    </div>
+                </div>
+            )}
+
+            {/* BOTTOM PANEL (CMD/CONTROLS) */}
+            {(!isMobile || mobileTab === 'CMD') && (
+                <div className={`absolute bottom-8 left-0 w-full px-4 md:px-8 flex ${isMobile ? 'flex-col items-center gap-4' : 'justify-between items-end'} font-mono text-orange-500 pointer-events-auto`}>
+                   
+                   {!isMobile && (
+                       <div className="w-64 bg-black/70 border-t-2 border-orange-500 backdrop-blur-sm p-2"><h3 className="text-[10px] font-bold mb-1 opacity-70">[ SAVED ROUTES ]</h3><div className="max-h-32 overflow-y-auto space-y-1 no-scrollbar">{savedRoutes.length === 0 && <span className="text-[10px] text-gray-600">No data.</span>}{savedRoutes.map(id => <button key={id} onClick={() => loadRoute(id)} className="block w-full text-left text-[10px] px-2 py-1 bg-gray-900 hover:bg-gray-700 text-white rounded">{id}</button>)}</div></div>
+                   )}
+
+                   <div className={`flex gap-4 items-end ${isMobile ? 'flex-col' : ''}`}>
+                       <button onClick={toggleMic} className={`px-6 py-3 border border-orange-500 text-xs hover:bg-orange-900/50 text-white font-bold transition-all ${isMicActive ? "bg-orange-600" : "bg-black/80"}`}>AUDIO SENSOR {isMicActive ? "[ON]" : "[OFF]"}</button>
+                       <button onClick={() => setCameraMode(prev => prev === 'OVERVIEW' ? 'FREE' : 'OVERVIEW')} className={`px-6 py-3 border border-orange-500 text-xs font-bold transition-all ${cameraMode === 'OVERVIEW' ? 'bg-orange-500 text-black' : 'bg-black/80 text-white hover:bg-orange-900/50'}`}>{cameraMode === 'OVERVIEW' ? "EXIT OVERVIEW" : "OVERVIEW [O]"}</button>
+                       {popupStar && cameraMode !== 'LANDING' && (<button onClick={() => { handleSelect(popupStar.id, popupStar.type); setCameraMode('LANDING'); setPopupStar(null); }} className="px-6 py-3 bg-black/80 border border-cyan-500 text-xs text-cyan-400 hover:bg-cyan-900/50 font-bold transition-all animate-pulse">LAND [L]</button>)}
+                       {cameraMode === 'LANDING' && (<button onClick={() => setCameraMode('FREE')} className="px-6 py-3 bg-red-900/80 border border-red-500 text-xs text-white hover:bg-red-700 font-bold transition-all">ABORT LANDING [L]</button>)}
+                   </div>
+
+                   <div className="flex gap-2"><button onClick={saveRoute} className="px-4 py-3 bg-black/80 border border-gray-500 text-xs hover:bg-gray-800 text-gray-300">SAVE</button><button onClick={() => setHistory([])} className="px-4 py-3 bg-black/80 border border-red-900 text-xs text-red-500 hover:bg-red-900/30">CLR</button></div>
+                </div>
+            )}
+          </div>
+        )}
+
+        {/* LANDING OVERLAY (常に表示 - Terminalの影響を受けない) */}
         {hasEntered && cameraMode === 'LANDING' && selectedStar && (
             <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                <div className="absolute bottom-24 right-24 bg-black/80 border border-cyan-500 p-6 w-96 backdrop-blur-md pointer-events-auto animate-slide-up">
+                <div className="absolute bottom-24 right-4 md:right-24 bg-black/80 border border-cyan-500 p-6 w-[90vw] md:w-96 backdrop-blur-md pointer-events-auto animate-slide-up">
                     <h2 className="text-xl font-bold text-cyan-400 mb-2">{selectedStar.id}</h2>
                     <div className="text-gray-400 text-xs mb-4 font-mono">Type: {selectedStar.type.toUpperCase()} | Status: ACTIVE</div>
                     <div className="aspect-video bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-500 mb-2 text-xs relative pointer-events-auto">
@@ -634,49 +682,6 @@ export default function Home() {
             </div>
         )}
 
-        {/* HUD UI (Terminal Toggle対象) */}
-        {hasEntered && showTerminal && (
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-start bg-gradient-to-b from-black/90 to-transparent">
-               <div className="text-orange-500 font-mono tracking-widest"><h2 className="text-xl font-bold">KPIA.SYSTEM</h2><span className="text-[10px] opacity-70">VER {PROFILE_DATA.ver} // {cameraMode} MODE</span></div>
-               <div className="text-right text-[10px] font-mono text-gray-500">UPTIME: ∞<br/>STATUS: STABLE</div>
-            </div>
-            <div className="absolute top-20 left-8 w-80 max-h-[85vh] overflow-y-auto font-mono text-orange-500 pointer-events-auto no-scrollbar">
-                <div className="flex flex-col gap-6">
-                    <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
-                        <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ USER PROFILE ]</h3>
-                        <div className="text-lg font-bold text-white mb-1">{PROFILE_DATA.name}</div>
-                        <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-line mb-4">{PROFILE_DATA.bio}</p>
-                        <div className="space-y-2">{PROFILE_DATA.links.map((link, i) => (<a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="block text-[10px] p-2 border border-gray-700 hover:bg-orange-900/30 hover:border-orange-500 transition-all text-white">{link.label} ↗</a>))}</div>
-                    </div>
-                    <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
-                        <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ LIVE INFO ]</h3>
-                        <div className="space-y-3">{LIVE_INFO_DATA.map((item, i) => (<div key={i} className="flex gap-3 text-xs border-b border-gray-800 pb-2"><div className="flex flex-col items-center justify-center bg-gray-900 px-2 py-1 border border-gray-700 w-12 text-center"><span className="text-[10px] text-gray-500">{item.date.split('.')[1]}</span><span className="text-lg font-bold text-orange-500 leading-none">{item.date.split('.')[2]}</span></div><div className="flex-1"><div className="text-white font-bold">{item.title}</div><div className="flex justify-between text-[10px] text-gray-400 mt-1"><span>@ {item.location}</span><span className="text-orange-400">[{item.type}]</span></div></div></div>))}</div>
-                    </div>
-                    <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
-                        <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ SCHEDULE ]</h3>
-                        <div className="space-y-2">{SCHEDULE_DATA.map((item, i) => (<div key={i} className="text-xs flex gap-2"><span className="text-gray-500">{item.date}</span><span className="border border-gray-700 px-1 text-[10px] text-orange-300">{item.category}</span><span className="text-gray-300">{item.text}</span></div>))}</div>
-                    </div>
-                </div>
-            </div>
-            <div className="absolute top-20 right-8 w-72 h-[75vh] font-mono text-orange-500 pointer-events-auto flex flex-col">
-                <div className="bg-black/70 border-r-2 border-orange-500 backdrop-blur-sm flex-1 overflow-hidden flex flex-col">
-                    <h3 className="p-2 text-xs font-bold border-b border-gray-800 bg-black/80">[ STAR DATABASE ]</h3>
-                    <div className="flex-1 overflow-y-auto p-2 no-scrollbar"><ul className="space-y-1">{stars.map((s, i) => { let typeColor = "text-orange-500"; if (s.type === 'cover') typeColor = "text-purple-400"; if (s.type === 'article') typeColor = "text-green-400"; if (s.type === 'draft') typeColor = "text-cyan-600"; return (<li key={s.id} className={`text-xs p-1 ${i === terminalIndex ? "bg-orange-900/50" : ""}`} onMouseEnter={() => setTerminalIndex(i)}><button onClick={(e) => { handleSelect(s.id, s.type); e.currentTarget.blur(); }} className={`w-full text-left flex justify-between ${s.isDevourer ? "animate-pulse text-red-500" : typeColor}`}><span>{s.id}</span><span className="opacity-30">{s.type}</span></button></li>) })}</ul></div>
-                </div>
-            </div>
-            <div className="absolute bottom-8 left-0 w-full px-8 flex justify-between items-end font-mono text-orange-500 pointer-events-auto">
-               <div className="w-64 bg-black/70 border-t-2 border-orange-500 backdrop-blur-sm p-2"><h3 className="text-[10px] font-bold mb-1 opacity-70">[ SAVED ROUTES ]</h3><div className="max-h-32 overflow-y-auto space-y-1 no-scrollbar">{savedRoutes.length === 0 && <span className="text-[10px] text-gray-600">No data.</span>}{savedRoutes.map(id => <button key={id} onClick={() => loadRoute(id)} className="block w-full text-left text-[10px] px-2 py-1 bg-gray-900 hover:bg-gray-700 text-white rounded">{id}</button>)}</div></div>
-               <div className="flex gap-4 items-end">
-                   <button onClick={toggleMic} className={`px-6 py-3 border border-orange-500 text-xs hover:bg-orange-900/50 text-white font-bold transition-all ${isMicActive ? "bg-orange-600" : "bg-black/80"}`}>AUDIO SENSOR {isMicActive ? "[ON]" : "[OFF]"}</button>
-                   <button onClick={() => setCameraMode(prev => prev === 'OVERVIEW' ? 'FREE' : 'OVERVIEW')} className={`px-6 py-3 border border-orange-500 text-xs font-bold transition-all ${cameraMode === 'OVERVIEW' ? 'bg-orange-500 text-black' : 'bg-black/80 text-white hover:bg-orange-900/50'}`}>{cameraMode === 'OVERVIEW' ? "EXIT OVERVIEW" : "OVERVIEW [O]"}</button>
-                   {popupStar && cameraMode !== 'LANDING' && (<button onClick={() => { handleSelect(popupStar.id, popupStar.type); setCameraMode('LANDING'); setPopupStar(null); }} className="px-6 py-3 bg-black/80 border border-cyan-500 text-xs text-cyan-400 hover:bg-cyan-900/50 font-bold transition-all animate-pulse">LAND [L]</button>)}
-                   {cameraMode === 'LANDING' && (<button onClick={() => setCameraMode('FREE')} className="px-6 py-3 bg-red-900/80 border border-red-500 text-xs text-white hover:bg-red-700 font-bold transition-all">ABORT LANDING [L]</button>)}
-               </div>
-               <div className="flex gap-2"><button onClick={saveRoute} className="px-4 py-3 bg-black/80 border border-gray-500 text-xs hover:bg-gray-800 text-gray-300">SAVE</button><button onClick={() => setHistory([])} className="px-4 py-3 bg-black/80 border border-red-900 text-xs text-red-500 hover:bg-red-900/30">CLR</button></div>
-            </div>
-          </div>
-        )}
         <style jsx global>{` 
             .glow-text { text-shadow: 0 0 20px #ff4400; } 
             .animate-slide-in { animation: slide-in 0.3s ease-out; } 
