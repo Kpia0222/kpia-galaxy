@@ -1,0 +1,706 @@
+// app/page.tsx
+"use client";
+
+import React, { useRef, useState, useEffect, useMemo, createContext, useContext } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import {
+  OrbitControls, Text, Environment, Sparkles, KeyboardControls, useKeyboardControls, Grid, Billboard, Line, Float, Html, Torus
+} from "@react-three/drei";
+import { EffectComposer, Bloom, Noise, Vignette } from "@react-three/postprocessing";
+import * as THREE from "three";
+
+// =====================================================================
+// 1. データ定義
+// =====================================================================
+
+const SOCIAL_LINKS = [
+  { name: "YouTube", url: "https://www.youtube.com/@popKpia", label: "YT" },
+  { name: "X", url: "https://x.com/takt_min", label: "X" },
+  { name: "SoundCloud", url: "https://soundcloud.com/user-376655816", label: "SC" },
+  { name: "Instagram", url: "https://www.instagram.com/popkpia/", label: "IG" },
+  { name: "Niconico", url: "https://www.nicovideo.jp/user/141136171", label: "NC" },
+  { name: "TikTok", url: "https://www.tiktok.com/@popkpia", label: "TK" },
+  { name: "Contact", url: "mailto:Kpia0222@gmail.com", label: "MAIL" },
+];
+
+const LIVE_EVENTS = [
+  { id: "20250126", title: "27dot RELEASE LIVE", date: "2025.01.26", time: "OPEN 17:30", place: "函館ARARA", status: "upcoming" },
+  { id: "202502xx", title: "DJ Event (Feb)", date: "2025.02.xx", status: "planning" },
+  { id: "202503xx", title: "DJ Event (Mar)", date: "2025.03.xx", status: "planning" }
+];
+
+const RELEASES = [
+  { id: "27dot", title: "27dot", type: "Album", date: "2025.01.26", description: "詳細、ティザーPV、キービジュアル順次公開", links: [] }
+];
+
+const PROFILE_DATA = {
+  name: "KPIA_SYSTEM",
+  ver: "25.2.0 (Genesis-View)",
+  bio: "整理、ハック、そして逸脱。\n秩序あるノイズを構築する。",
+  details: "Techno, Hyperpop, Ambient, and Classical fusion.\nExploring the boundary between organic emotion and digital structure."
+};
+
+// --- データ構造 ---
+
+type EntityType = 'star' | 'planet' | 'satellite';
+
+interface EntityData {
+  id: string;
+  type: EntityType;
+  label: string;
+  desc?: string;
+  color: string;
+  size: number;
+  distance: number;
+  speed: number;
+  inclination: [number, number, number];
+  phase: number;
+  children?: EntityData[];
+  youtubeId?: string;
+  parentId?: string;
+  category?: string;
+  dataSize?: string;
+  clicks?: number;
+  bpm?: number;
+  key?: string;
+}
+
+// 星座データ構造
+interface ConstellationData {
+  id: string;
+  name: string;
+  stars: string[];
+  color: string;
+  visible: boolean;
+}
+
+const GALAXY_DATA: EntityData[] = Array.from({ length: 30 }, (_, i) => {
+  const starId = `Kp.${String(i + 1).padStart(3, '0')}`;
+  const starIndex = i + 1;
+  const hasRemix = Math.random() > 0.5;
+  const planets: EntityData[] = [];
+
+  const randomInclination = () => [(Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5] as [number, number, number];
+  const categories = ["Original", "Remix", "Cover", "Draft", "Live"];
+  const category = categories[Math.floor(Math.random() * categories.length)];
+
+  // Kp.001 特別仕様 (指定YouTube埋め込み)
+  let youtubeId = i % 3 === 0 ? "dQw4w9WgXcQ" : undefined;
+  if (starIndex === 1) {
+      youtubeId = "eh8noQsIhjg";
+  }
+
+  // Kp.005 特別仕様
+  if (starIndex === 5) {
+    planets.push({
+      id: `${starId}-Rmx1`, parentId: starId, type: 'planet', label: `Remix Vol.1`, color: '#00ffff', size: 0.4, distance: 5, speed: 0.3, inclination: randomInclination(), phase: Math.random() * 6, children: [], category: "Remix", bpm: 140, key: "Cm"
+    });
+    const vol2Satellites: EntityData[] = [1, 2, 3, 4].map(v => ({
+      id: `${starId}-Rmx2-v${v}`, parentId: `${starId}-Rmx2`, type: 'satellite', label: `ver${v}`, color: '#ff00ff', size: 0.15, distance: 1.5 + (v * 0.3), speed: 1.0 - (v * 0.1), inclination: randomInclination(), phase: Math.random() * 6, category: "Draft", bpm: 142, key: "Cm"
+    }));
+    planets.push({
+      id: `${starId}-Rmx2`, parentId: starId, type: 'planet', label: `Remix Vol.2`, desc: 'Special Versions', color: '#00ffff', size: 0.5, distance: 8, speed: 0.2, inclination: randomInclination(), phase: Math.random() * 6, children: vol2Satellites, category: "Remix", bpm: 142, key: "Cm"
+    });
+  } else if (hasRemix) {
+    const planetCount = Math.floor(Math.random() * 3) + 1;
+    for (let j = 0; j < planetCount; j++) {
+      const planetId = `${starId}-Rmx${j+1}`;
+      const satellites: EntityData[] = [];
+      if (Math.random() > 0.5) {
+        satellites.push({
+          id: `${planetId}-Inst`, parentId: planetId, type: 'satellite', label: 'Inst Ver.', color: '#888888', size: 0.15, distance: 1.2, speed: 1.5, inclination: randomInclination(), phase: Math.random() * 6, category: "Instrumental"
+        });
+      }
+      planets.push({
+        id: planetId, parentId: starId, type: 'planet', label: `Remix Vol.${j+1}`, color: '#00ffff', size: 0.4, distance: 5 + j * 2.0, speed: 0.2 + Math.random() * 0.3, inclination: randomInclination(), phase: Math.random() * 6, children: satellites, category: "Remix"
+      });
+    }
+  }
+
+  return {
+    id: starId, type: 'star', label: starId, color: i === 0 ? '#ff0000' : '#ffaa00', size: 1.0, distance: 20 + Math.random() * 40, speed: 0.02 + Math.random() * 0.03, inclination: [(Math.random()-0.5)*0.2, 0, (Math.random()-0.5)*0.2], phase: Math.random() * 6, youtubeId: youtubeId, children: planets, category: category, dataSize: `${(Math.random() * 100).toFixed(1)} MB`, clicks: Math.floor(Math.random() * 500), bpm: 120 + Math.floor(Math.random() * 60), key: ["C", "D", "E", "F", "G", "A", "B"][Math.floor(Math.random()*7)] + (Math.random()>0.5?"m":"")
+  };
+});
+
+// 星座線描画用の静的座標計算
+const STAR_STATIC_POSITIONS = new Map<string, THREE.Vector3>();
+GALAXY_DATA.forEach((star) => {
+  const angle = star.phase;
+  const x = Math.cos(angle) * star.distance;
+  const z = Math.sin(angle) * star.distance;
+  const y = x * Math.sin(star.inclination[2]); 
+  STAR_STATIC_POSITIONS.set(star.id, new THREE.Vector3(x, y, z));
+});
+
+const RefContext = createContext<React.MutableRefObject<Map<string, THREE.Object3D>> | null>(null);
+const HoverContext = createContext<{ hoveredId: string | null, setHoveredId: (id: string | null) => void } | null>(null);
+
+const controlsMap = [
+  { name: 'forward', keys: ['w', 'W'] },
+  { name: 'backward', keys: ['s', 'S'] },
+  { name: 'left', keys: ['a', 'A'] },
+  { name: 'right', keys: ['d', 'D'] },
+  { name: 'up', keys: ['Space'] },
+  { name: 'down', keys: ['Shift'] },
+];
+
+// =====================================================================
+// 2. 3D Components
+// =====================================================================
+
+function LiquidMetalDNA({ onClick }: { onClick: () => void }) {
+  const group = useRef<THREE.Group>(null);
+  const [hovered, setHover] = useState(false);
+
+  useFrame((state) => {
+    if (group.current) {
+      group.current.rotation.y = state.clock.getElapsedTime() * 0.2;
+      group.current.position.y = Math.sin(state.clock.getElapsedTime()) * 0.5;
+    }
+  });
+
+  return (
+    <group 
+      ref={group} 
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onPointerOver={() => { setHover(true); document.body.style.cursor = 'pointer'; }}
+      onPointerOut={() => { setHover(false); document.body.style.cursor = 'auto'; }}
+    >
+      {/* ENTER DNA MODE のテキストは削除しました */}
+      
+      {Array.from({ length: 40 }).map((_, i) => {
+        const t = i / 40; const y = (t - 0.5) * 40; const angle = t * Math.PI * 8; const r = 3;
+        return (
+          <group key={i} position={[0, y, 0]}>
+            <mesh position={[Math.cos(angle)*r, 0, Math.sin(angle)*r]}><sphereGeometry args={[0.5, 8, 8]} /><meshStandardMaterial color="#222" metalness={1} roughness={0.1} /></mesh>
+            <mesh position={[Math.cos(angle + Math.PI)*r, 0, Math.sin(angle + Math.PI)*r]}><sphereGeometry args={[0.5, 8, 8]} /><meshStandardMaterial color="#222" metalness={1} roughness={0.1} /></mesh>
+            <mesh rotation={[0, -angle, 0]} scale={[1, 0.1, 0.1]}><boxGeometry args={[r*2, 1, 1]} /><meshStandardMaterial color="#ff4400" emissive={hovered ? "#ffaa00" : "#ff4400"} emissiveIntensity={hovered ? 2 : 0.5} /></mesh>
+          </group>
+        )
+      })}
+    </group>
+  );
+}
+
+function OrbitGroup({ data, children }: { data: EntityData, children: React.ReactNode }) {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (groupRef.current) groupRef.current.rotation.y = data.phase + clock.getElapsedTime() * data.speed * 0.5;
+  });
+  return (
+    <group rotation={[data.inclination[0], 0, data.inclination[2]]}>
+      <group ref={groupRef}>
+        <group position={[data.distance, 0, 0]}>{children}</group>
+      </group>
+      {/* Starの軌道も表示 */}
+      <Torus args={[data.distance, data.type === 'star' ? 0.05 : 0.02, 16, 100]} rotation={[Math.PI / 2, 0, 0]}>
+          <meshBasicMaterial color={data.color} transparent opacity={data.type === 'star' ? 0.1 : 0.3} />
+      </Torus>
+    </group>
+  );
+}
+
+function Scouter({ data, visible }: { data: EntityData, visible: boolean }) {
+  if (!visible) return null;
+  return (
+    <Html position={[2.5, 2.5, 0]} center distanceFactor={15} zIndexRange={[100, 0]} style={{ pointerEvents: 'none' }}>
+      <div className="flex items-end origin-bottom-left">
+        <div className="w-10 h-10 border-b-2 border-l-2 border-cyan-500/80 -mb-0.5 -ml-0.5 transform -skew-x-12 origin-bottom-left bg-cyan-900/10 backdrop-blur-sm"></div>
+        <div className="bg-black/90 border-t-2 border-r-2 border-cyan-500/80 p-3 text-cyan-400 font-mono text-xs min-w-[150px] shadow-[0_0_20px_rgba(0,255,255,0.4)]">
+          <div className="text-white font-bold border-b border-cyan-900 pb-1 mb-1 text-sm">{data.id}</div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+            <span className="opacity-70">TYPE:</span><span className="text-right text-white">{data.type.toUpperCase()}</span>
+            <span className="opacity-70">CAT:</span><span className="text-right text-white">{data.category || "-"}</span>
+            <span className="opacity-70">SIZE:</span><span className="text-right text-white">{data.dataSize || "-"}</span>
+            <span className="opacity-70">VISIT:</span><span className="text-right text-white">{data.clicks || 0}</span>
+          </div>
+        </div>
+      </div>
+    </Html>
+  );
+}
+
+function CelestialBody({ data, children, onClick }: any) {
+  const ref = useRef<THREE.Group>(null);
+  const refMap = useContext(RefContext);
+  const hoverCtx = useContext(HoverContext);
+  useEffect(() => {
+    if (ref.current && refMap) refMap.current.set(data.id, ref.current);
+    return () => { if (refMap) refMap.current.delete(data.id); };
+  }, [data.id, refMap]);
+  return (
+    <group ref={ref}>
+      <mesh 
+        onClick={(e) => { e.stopPropagation(); onClick(data); }} 
+        onPointerOver={(e) => { e.stopPropagation(); hoverCtx?.setHoveredId(data.id); document.body.style.cursor = 'pointer'; }} 
+        onPointerOut={(e) => { e.stopPropagation(); hoverCtx?.setHoveredId(null); document.body.style.cursor = 'auto'; }}
+      >
+        {children}
+      </mesh>
+    </group>
+  );
+}
+
+function SatelliteObj({ data, onSelect }: { data: EntityData, onSelect: (e: EntityData) => void }) {
+  const hoverCtx = useContext(HoverContext);
+  const isHovered = hoverCtx?.hoveredId === data.id;
+  return (
+    <OrbitGroup data={data}>
+      <CelestialBody data={data} onClick={onSelect}>
+        <octahedronGeometry args={[data.size, 0]} />
+        <meshStandardMaterial color={data.color} wireframe />
+      </CelestialBody>
+      {isHovered && <Billboard position={[0, data.size + 0.5, 0]}><Text fontSize={0.3} color="white">{data.label}</Text></Billboard>}
+    </OrbitGroup>
+  );
+}
+
+function PlanetObj({ data, onSelect }: { data: EntityData, onSelect: (e: EntityData) => void }) {
+  const hoverCtx = useContext(HoverContext);
+  const isHovered = hoverCtx?.hoveredId === data.id;
+  return (
+    <OrbitGroup data={data}>
+      <CelestialBody data={data} onClick={onSelect}>
+        <sphereGeometry args={[data.size, 16, 16]} />
+        <meshStandardMaterial color={data.color} metalness={0.5} roughness={0.5} />
+      </CelestialBody>
+      <Billboard position={[0, data.size + 0.5, 0]}><Text fontSize={0.5} color={data.color}>{data.label}</Text></Billboard>
+      {data.children?.map(sat => <SatelliteObj key={sat.id} data={sat} onSelect={onSelect} />)}
+      <Scouter data={data} visible={isHovered} />
+    </OrbitGroup>
+  );
+}
+
+function StarObj({ data, focusId, onSelect }: { data: EntityData, focusId: string | null, onSelect: (e: EntityData) => void }) {
+  const hoverCtx = useContext(HoverContext);
+  const isHovered = hoverCtx?.hoveredId === data.id;
+  const isFocused = focusId === data.id;
+  
+  return (
+    <OrbitGroup data={data}>
+      <CelestialBody data={data} onClick={onSelect}>
+        <dodecahedronGeometry args={[data.size, 0]} />
+        <meshStandardMaterial color={data.color} emissive={data.color} emissiveIntensity={isFocused || isHovered ? 2 : 0.5} wireframe={!data.youtubeId} />
+      </CelestialBody>
+      
+      <Billboard position={[0, 2, 0]}><Text fontSize={1} color="white" anchorY="bottom">{data.label}</Text></Billboard>
+      <Scouter data={data} visible={isHovered || isFocused} />
+
+      {data.children?.map(planet => <PlanetObj key={planet.id} data={planet} onSelect={onSelect} />)}
+    </OrbitGroup>
+  );
+}
+
+function SetlistConstellation({ setlist }: { setlist: string[] }) {
+  const points = useMemo(() => {
+    const pts: THREE.Vector3[] = [];
+    setlist.forEach(id => {
+      const p = STAR_STATIC_POSITIONS.get(id);
+      if (p) pts.push(p);
+    });
+    return pts;
+  }, [setlist]);
+  if (points.length < 2) return null;
+  return <Line points={points} color="#00ffff" lineWidth={2} transparent opacity={0.6} />;
+}
+
+// カメラ制御
+function ExplorationCamera({ focusId, mode }: { focusId: string | null, mode: string }) {
+  const { camera, controls } = useThree();
+  const refMap = useContext(RefContext);
+  const [, get] = useKeyboardControls();
+  const targetVec = new THREE.Vector3();
+  const cameraVec = new THREE.Vector3();
+  const worldPos = new THREE.Vector3();
+
+  // 初期化時に俯瞰視点へ
+  useEffect(() => {
+      // DNAモードスタートだが、UNIVERSEモードになった瞬間の初期位置として
+      // 俯瞰視点 (Bird's Eye) を設定できると良いが、ここではuseFrameで制御
+  }, []);
+
+  useFrame((state, delta) => {
+    // 1. DNA MODE (Horizontal Center)
+    if (mode === 'DNA') {
+        targetVec.set(0, 0, 0);
+        cameraVec.set(0, 0, 35); // 水平正面
+        (controls as any).target.lerp(targetVec, 0.05);
+        state.camera.position.lerp(cameraVec, 0.05);
+        return;
+    }
+
+    // 2. FOCUS MODE (Pursuit)
+    if (focusId && refMap && refMap.current.has(focusId)) {
+      const targetObj = refMap.current.get(focusId);
+      if (targetObj) {
+        targetObj.getWorldPosition(worldPos);
+        targetVec.copy(worldPos);
+
+        if (mode === 'SATELLITE') {
+            cameraVec.copy(worldPos).add(new THREE.Vector3(0, 0.5, 1.5));
+        } else if (mode === 'PLANET') {
+          cameraVec.copy(worldPos).add(new THREE.Vector3(0, 2, 4));
+        } else if (mode === 'STAR') {
+          cameraVec.copy(worldPos).add(new THREE.Vector3(0, 5, 8));
+        }
+
+        (controls as any).target.lerp(targetVec, 0.1); 
+        state.camera.position.lerp(cameraVec, 0.05);   
+      }
+      return;
+    }
+
+    // 3. UNIVERSE FREE MODE (俯瞰 + WASD)
+    if (mode === 'UNIVERSE' && !focusId) {
+        const { forward, backward, left, right, up, down } = get();
+        const speed = 40 * delta;
+        
+        // 俯瞰視点維持のため、カメラの向きに関わらずXZ平面移動を基本にする
+        // ただしOrbitControlsなので、targetとcameraを同時に動かす
+        
+        const front = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        front.y = 0; front.normalize(); // Y成分を消して水平移動
+        const side = new THREE.Vector3().crossVectors(front, new THREE.Vector3(0, 1, 0)).normalize();
+        
+        const moveVec = new THREE.Vector3();
+        if (forward) moveVec.add(front);
+        if (backward) moveVec.sub(front);
+        if (left) moveVec.sub(side);
+        if (right) moveVec.add(side);
+        if (up) moveVec.y += 1;
+        if (down) moveVec.y -= 1;
+
+        if (moveVec.length() > 0) {
+            camera.position.add(moveVec.multiplyScalar(speed));
+            (controls as any).target.add(moveVec.multiplyScalar(speed));
+        } else {
+            // 移動していない時、ターゲットを少し見下ろす位置にカメラを誘導（緩やかに）
+            // これにより「俯瞰」がデフォルトになる
+            // (controls as any).target.lerp(new THREE.Vector3(0,0,0), 0.01); // 原点回帰はさせない方が自由度が高い
+        }
+    }
+  });
+
+  return <OrbitControls makeDefault enableZoom={true} enablePan={true} enableRotate={true} />;
+}
+
+// =====================================================================
+// 3. Main Application
+// =====================================================================
+
+export default function Home() {
+  const [isMounted, setIsMounted] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(true);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [setlist, setSetlist] = useState<string[]>([]);
+  // 初期モードはDNA
+  const [currentMode, setCurrentMode] = useState<'UNIVERSE' | 'STAR' | 'PLANET' | 'SATELLITE' | 'DNA'>('DNA');
+  const [searchQuery, setSearchQuery] = useState("");
+  const [savedConstellations, setSavedConstellations] = useState<ConstellationData[]>([]);
+  
+  const refMap = useRef(new Map<string, THREE.Object3D>());
+
+  const flattenedData = useMemo(() => {
+    const list: EntityData[] = [];
+    GALAXY_DATA.forEach(star => {
+      list.push(star);
+      star.children?.forEach(planet => { list.push(planet); planet.children?.forEach(sat => list.push(sat)); });
+    });
+    return list;
+  }, []);
+
+  const searchResults = useMemo(() => {
+    if (!searchQuery) return GALAXY_DATA;
+    return flattenedData.filter(d => d.label.toLowerCase().includes(searchQuery.toLowerCase()) || d.id.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [searchQuery, flattenedData]);
+
+  // アクション
+  const handleNavigate = (id: string) => {
+    const entity = flattenedData.find(e => e.id === id);
+    if (!entity) return;
+    setFocusId(entity.id);
+    if (entity.type === 'star') setCurrentMode('STAR');
+    if (entity.type === 'planet') setCurrentMode('PLANET');
+    if (entity.type === 'satellite') setCurrentMode('SATELLITE');
+  };
+
+  const handleBack = () => {
+    if (currentMode === 'DNA') { setCurrentMode('UNIVERSE'); return; } // DNA -> Universe
+    if (currentMode === 'SATELLITE') {
+        const parentPlanet = flattenedData.find(d => d.children?.some(s => s.id === focusId));
+        if (parentPlanet) handleNavigate(parentPlanet.id);
+    } else if (currentMode === 'PLANET') {
+        const parentStar = GALAXY_DATA.find(s => s.children?.some(p => p.id === focusId));
+        if (parentStar) handleNavigate(parentStar.id);
+    } else if (currentMode === 'STAR') {
+        setFocusId(null); setCurrentMode('UNIVERSE');
+    }
+  };
+
+  const handleEnter = () => {
+      if (currentMode === 'DNA') return;
+      if (hoveredId) handleNavigate(hoveredId);
+  };
+
+  useEffect(() => {
+    setIsMounted(true);
+    const handleKey = (e: KeyboardEvent) => {
+        if (e.key === 't' || e.key === 'T') setShowTerminal(prev => !prev);
+        if (e.key === 'u' || e.key === 'U') {
+            setCurrentMode(prev => prev === 'DNA' ? 'UNIVERSE' : 'DNA');
+            if(currentMode !== 'DNA') setFocusId(null); 
+        }
+        if (e.key === 'Escape') handleBack();
+        if (e.key === 'Enter') handleEnter();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [currentMode, focusId, hoveredId]);
+
+  const addToSetlist = (id: string) => { if (!setlist.includes(id)) setSetlist(prev => [...prev, id]); };
+  
+  const saveConstellation = () => {
+      if (setlist.length < 2) { alert("Select at least 2 stars."); return; }
+      setSavedConstellations(prev => [...prev, { id: `cst-${Date.now()}`, name: `Cst #${prev.length+1}`, stars: [...setlist], color: `hsl(${Math.random()*360},100%,50%)`, visible: true }]);
+      setSetlist([]);
+  };
+
+  const loadConstellation = (cst: ConstellationData) => {
+      setSetlist(cst.stars);
+  };
+
+  const deleteConstellation = (id: string) => {
+      setSavedConstellations(prev => prev.filter(c => c.id !== id));
+  };
+
+  // ターゲット情報取得
+  const targetEntity = useMemo(() => flattenedData.find(d => d.id === focusId) || (hoveredId ? flattenedData.find(d => d.id === hoveredId) : null), [focusId, hoveredId]);
+
+  if (!isMounted) return null;
+
+  return (
+    <KeyboardControls map={controlsMap}>
+      <RefContext.Provider value={refMap}>
+        <HoverContext.Provider value={{ hoveredId, setHoveredId }}>
+          <main className="h-screen w-full bg-black overflow-hidden relative font-mono text-white select-none">
+            
+            <div className="absolute inset-0 z-0">
+              <Canvas camera={{ position: [0, 60, 80], fov: 60 }}>
+                <color attach="background" args={['#020202']} />
+                <ambientLight intensity={0.2} />
+                <pointLight position={[0, 0, 0]} intensity={2} color="#ffaa00" distance={100} />
+                <Environment preset="city" />
+                <Sparkles count={5000} scale={200} size={2} speed={0} opacity={0.5} />
+                <Grid position={[0, -50, 0]} args={[400, 400]} cellSize={10} cellThickness={0.5} cellColor="#222" sectionSize={50} sectionThickness={1} sectionColor="#444" fadeDistance={200} />
+
+                <LiquidMetalDNA onClick={() => { setCurrentMode('DNA'); setFocusId(null); }} />
+
+                <group>
+                  {GALAXY_DATA.map(star => (
+                    <StarObj key={star.id} data={star} focusId={focusId} onSelect={(e) => handleNavigate(e.id)} />
+                  ))}
+                </group>
+
+                <SetlistConstellation setlist={setlist} />
+                {savedConstellations.filter(c => c.visible).map(c => (
+                    <Line key={c.id} points={c.stars.map(id => STAR_STATIC_POSITIONS.get(id) || new THREE.Vector3())} color={c.color} lineWidth={2} transparent opacity={0.6} />
+                ))}
+
+                <ExplorationCamera focusId={focusId} mode={currentMode} />
+
+                <EffectComposer>
+                  <Bloom intensity={1.5} luminanceThreshold={0.2} />
+                  <Noise opacity={0.05} />
+                  <Vignette eskil={false} offset={0.1} darkness={1.1} />
+                </EffectComposer>
+              </Canvas>
+            </div>
+
+            {/* ======================= UI LAYERS ======================= */}
+
+            {/* 1. DNA MODE UI (SNS + INFO) */}
+            {currentMode === 'DNA' && (
+                <div className="absolute inset-0 z-50 flex justify-between items-center pointer-events-none p-20 animate-fade-in">
+                    {/* LEFT: PROFILE */}
+                    <div className="w-1/3 h-full flex flex-col justify-center bg-black/60 backdrop-blur-md p-8 border-l-4 border-cyan-500 pointer-events-auto">
+                        <h2 className="text-5xl font-bold mb-4 tracking-tighter text-white">{PROFILE_DATA.name}</h2>
+                        <p className="text-sm text-gray-300 whitespace-pre-line leading-relaxed mb-6">{PROFILE_DATA.bio}</p>
+                        <div className="text-xs text-gray-400 mb-8">{PROFILE_DATA.details}</div>
+                        {/* SNS LINKS MOVED HERE */}
+                        <div className="flex flex-wrap gap-4 mt-auto">
+                            {SOCIAL_LINKS.map(sns => (
+                                <a key={sns.name} href={sns.url} target="_blank" rel="noopener noreferrer" className="text-xs border border-gray-600 px-3 py-1 hover:bg-cyan-500 hover:text-black transition uppercase">{sns.label}</a>
+                            ))}
+                        </div>
+                    </div>
+                    {/* RIGHT: INFO */}
+                    <div className="w-1/3 h-full flex flex-col justify-center bg-black/60 backdrop-blur-md p-8 border-r-4 border-cyan-500 text-right pointer-events-auto">
+                        <h3 className="text-2xl font-bold mb-6 text-cyan-400">LIVE SCHEDULE</h3>
+                        <div className="space-y-4 mb-8">
+                            {LIVE_EVENTS.map(evt => (
+                                <div key={evt.id}>
+                                    <div className="text-white font-bold">{evt.date}</div>
+                                    <div className="text-sm text-gray-300">{evt.title}</div>
+                                    <div className="text-xs text-gray-500">{evt.place}</div>
+                                </div>
+                            ))}
+                        </div>
+                        <h3 className="text-2xl font-bold mb-6 text-green-400">LATEST RELEASE</h3>
+                        {RELEASES.map(rel => (
+                            <div key={rel.id}>
+                                <div className="text-white font-bold">{rel.title}</div>
+                                <div className="text-xs text-gray-500">{rel.date}</div>
+                            </div>
+                        ))}
+                    </div>
+                    <button onClick={handleBack} className="absolute bottom-10 left-1/2 -translate-x-1/2 px-8 py-2 bg-red-900/50 border border-red-500 text-white pointer-events-auto hover:bg-red-900">[ ENTER UNIVERSE ]</button>
+                </div>
+            )}
+
+            {/* 2. COCKPIT UI (Terminal) */}
+            {showTerminal && currentMode !== 'DNA' && (
+              <>
+                {/* LEFT: DATABASE & CONSTELLATION */}
+                <div className="absolute top-24 left-4 bottom-24 w-72 bg-black/80 border-r border-cyan-900/30 backdrop-blur-md flex flex-col pointer-events-auto animate-slide-right z-30">
+                    <div className="p-3 border-b border-gray-800 bg-gray-900/50 text-cyan-400 text-xs tracking-wider font-bold">[ GALAXY NAV ]</div>
+                    <div className="p-2 border-b border-gray-800"><input type="text" placeholder="SEARCH..." className="w-full bg-black border border-gray-700 p-1 text-xs text-cyan-400 outline-none" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
+                    <div className="flex-1 overflow-y-auto p-2 custom-scrollbar border-b border-gray-800">
+                        <ul className="space-y-1">
+                            {searchResults.map((entity) => (
+                                <li key={entity.id} className="text-xs">
+                                    <div className="flex items-center group">
+                                        <span className="text-gray-600 mr-2 w-3">{entity.type==='star'?'★':entity.type==='planet'?'●':'·'}</span>
+                                        <button onClick={() => handleNavigate(entity.id)} className={`flex-1 text-left py-1 truncate hover:text-cyan-400 ${focusId===entity.id?'text-cyan-400 font-bold':'text-gray-300'}`}>{entity.label}</button>
+                                        {entity.type==='star' && <button onClick={() => addToSetlist(entity.id)} className="text-[10px] px-2 text-gray-600 hover:text-white border border-gray-800 opacity-0 group-hover:opacity-100">+</button>}
+                                    </div>
+                                    {!searchQuery && entity.children && (
+                                        <div className="border-l border-gray-800 ml-1.5 pl-2 mt-1 space-y-1">
+                                            {entity.children.map(child => (
+                                                <div key={child.id}>
+                                                    <div className="flex items-center">
+                                                        <button onClick={() => handleNavigate(child.id)} className={`flex-1 text-left py-0.5 text-gray-500 hover:text-cyan-300 truncate ${focusId===child.id?'text-cyan-300':''}`}>- {child.label}</button>
+                                                    </div>
+                                                    {child.children && (
+                                                        <div className="ml-2 border-l border-gray-800 pl-2">
+                                                            {child.children.map(sat => (
+                                                                <button key={sat.id} onClick={() => handleNavigate(sat.id)} className="block w-full text-left py-0.5 text-[9px] text-gray-600 hover:text-pink-400 truncate">. {sat.label}</button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                    {/* Constellation Manager (復活) */}
+                    <div className="h-1/3 flex flex-col bg-gray-900/30">
+                        <div className="p-2 text-[10px] text-cyan-500 font-bold border-b border-gray-800">[ CONSTELLATION MANAGER ]</div>
+                        <div className="p-2 border-b border-gray-800 flex gap-2">
+                            <button onClick={saveConstellation} className="flex-1 bg-cyan-900/30 border border-cyan-500/50 text-cyan-400 text-[10px] py-1 hover:bg-cyan-500/20">SAVE DRAFT</button>
+                            <button onClick={() => setSetlist([])} className="px-2 border border-red-900 text-red-500 text-[10px] hover:bg-red-900/20">CLR</button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                            {setlist.length > 0 && <div className="text-[10px] text-gray-400">Current: {setlist.join(", ")}</div>}
+                            {savedConstellations.map((c, i) => (
+                                <div key={i} className="flex justify-between items-center text-[10px] bg-black/50 p-1 border border-gray-700">
+                                    <div className="flex items-center gap-2">
+                                        <span style={{color:c.color}}>{c.name}</span>
+                                        <button onClick={() => loadConstellation(c)} className="text-xs text-gray-500 hover:text-white">[LOAD]</button>
+                                    </div>
+                                    <button onClick={() => deleteConstellation(c.id)} className="text-red-900 hover:text-red-500">×</button>
+                                </div>
+                            ))}
+                            {savedConstellations.length===0 && setlist.length===0 && <div className="text-[10px] text-gray-600 text-center mt-4">NO DATA</div>}
+                        </div>
+                    </div>
+                </div>
+
+                {/* RIGHT: STATISTICS */}
+                <div className="absolute top-24 right-4 bottom-24 w-72 bg-black/80 border-l border-cyan-900/30 backdrop-blur-md flex flex-col pointer-events-auto animate-slide-left z-30">
+                    <div className="p-3 border-b border-gray-800 bg-gray-900/50 text-cyan-400 text-xs tracking-wider font-bold">[ TARGET ANALYSIS ]</div>
+                    {targetEntity ? (
+                        <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
+                            <div>
+                                <h2 className="text-xl font-bold text-white mb-1">{targetEntity.label}</h2>
+                                <p className="text-xs text-gray-500">{targetEntity.id}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 text-xs">
+                                <div><div className="text-gray-600">TYPE</div><div className="text-cyan-300">{targetEntity.type.toUpperCase()}</div></div>
+                                <div><div className="text-gray-600">CATEGORY</div><div className="text-white">{targetEntity.category || "N/A"}</div></div>
+                                <div><div className="text-gray-600">SIZE</div><div className="text-white">{targetEntity.dataSize || "N/A"}</div></div>
+                                <div><div className="text-gray-600">CLICKS</div><div className="text-white">{targetEntity.clicks || 0}</div></div>
+                                {targetEntity.bpm && <div><div className="text-gray-600">BPM</div><div className="text-white">{targetEntity.bpm}</div></div>}
+                                {targetEntity.key && <div><div className="text-gray-600">KEY</div><div className="text-white">{targetEntity.key}</div></div>}
+                            </div>
+                            {targetEntity.desc && <p className="text-xs text-gray-400 border-t border-gray-800 pt-4">{targetEntity.desc}</p>}
+                            {targetEntity.youtubeId && (
+                                <div className="mt-4">
+                                    <div className="text-[10px] text-gray-500 mb-1">MEDIA LINK</div>
+                                    <div className="aspect-video bg-black border border-gray-700 flex items-center justify-center text-gray-600 text-xs">
+                                        <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${targetEntity.youtubeId}`} title="YouTube" frameBorder="0" allowFullScreen />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="flex-1 flex items-center justify-center text-xs text-gray-600">
+                            SYSTEM IDLE<br/>SELECT TARGET
+                        </div>
+                    )}
+                </div>
+
+                {/* BOTTOM: CONTROLS */}
+                <div className="absolute bottom-4 left-0 w-full flex justify-center items-end pointer-events-auto z-30 animate-slide-up">
+                    <div className="bg-black/90 border-t border-x border-cyan-900/50 px-10 py-3 flex gap-6 items-center backdrop-blur-md rounded-t-lg shadow-[0_0_30px_rgba(0,0,0,0.8)]">
+                        <button onClick={() => setShowTerminal(false)} className="px-6 py-2 text-xs tracking-widest border bg-cyan-900/30 border-cyan-500 text-cyan-400 shadow-[0_0_15px_cyan]">TERMINAL [ T ]</button>
+                        <button onClick={handleBack} className="px-6 py-2 text-xs border border-gray-600 text-white hover:bg-white/20 transition tracking-widest">BACK [ ESC ]</button>
+                        <div className="h-8 w-px bg-gray-800"></div>
+                        <div className="flex flex-col text-[10px] text-gray-500">
+                            <span>SETLIST: {setlist.length}</span>
+                            <div className="flex gap-2 mt-1">
+                                <button onClick={saveConstellation} className="hover:text-cyan-400">SAVE</button>
+                                <button onClick={() => setSetlist([])} className="hover:text-red-400">CLR</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+              </>
+            )}
+
+            {/* TOGGLE BUTTON */}
+            {!showTerminal && currentMode !== 'DNA' && (
+                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+                    <button onClick={() => setShowTerminal(true)} className="px-8 py-2 bg-black/80 border border-gray-600 text-gray-400 hover:border-white hover:text-white transition-all text-sm tracking-widest">[ TERMINAL ]</button>
+                </div>
+            )}
+
+            {/* VERSION INFO */}
+            <div className="absolute bottom-4 right-4 z-50 text-[10px] text-gray-600 pointer-events-none font-mono">
+                {PROFILE_DATA.ver}
+            </div>
+
+            <style jsx global>{`
+                .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: #050505; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; }
+                @keyframes slide-right { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+                .animate-slide-right { animation: slide-right 0.3s ease-out; }
+                @keyframes slide-left { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+                .animate-slide-left { animation: slide-left 0.3s ease-out; }
+                @keyframes slide-down { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+                .animate-slide-down { animation: slide-down 0.3s ease-out; }
+                @keyframes slide-up { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+                .animate-slide-up { animation: slide-up 0.3s ease-out; }
+                @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+                .animate-fade-in { animation: fade-in 0.5s ease-out; }
+            `}</style>
+          </main>
+        </HoverContext.Provider>
+      </RefContext.Provider>
+    </KeyboardControls>
+  );
+}
