@@ -1,65 +1,696 @@
-import Image from "next/image";
+"use client";
+
+import React, { useRef, useState, useEffect, useMemo } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import {
+  OrbitControls, MeshDistortMaterial, Line, Text, Environment, Sparkles, KeyboardControls, useKeyboardControls, QuadraticBezierLine, Grid, Ring
+} from "@react-three/drei";
+import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import * as THREE from "three";
+
+// =====================================================================
+// 1. データ定義
+// =====================================================================
+
+const PROFILE_DATA = {
+  name: "KPIA_SYSTEM",
+  ver: "21.0.0",
+  bio: "整理、ハック、そして逸脱。\n秩序あるノイズを構築する。",
+  links: [
+    { label: "Twitter (X)", url: "https://twitter.com/" },
+    { label: "SoundCloud", url: "https://soundcloud.com/" },
+    { label: "YouTube", url: "https://youtube.com/" },
+    { label: "Contact", url: "mailto:contact@kpia.universe" },
+  ]
+};
+
+const LIVE_INFO_DATA = [
+  { date: "2026.02.14", title: "VALENTINE NOISE", location: "Tokyo, WWW", type: "LIVE" },
+  { date: "2026.03.03", title: "HINA-MATSURI BASS", location: "Osaka, CIRCUS", type: "DJ" },
+  { date: "2026.04.01", title: "APRIL FOOL GLITCH", location: "Virtual Space", type: "STREAM" },
+];
+
+const SCHEDULE_DATA = [
+  { date: "2026.01.20", category: "RELEASE", text: "New Single Digital Release" },
+  { date: "2026.01.25", category: "VIDEO", text: "MV Premiere on YouTube" },
+  { date: "2026.02.01", category: "SHOP", text: "Merchandise Pre-order Start" },
+];
+
+type StarType = 'original' | 'cover' | 'article' | 'draft';
+
+interface StarData {
+  id: string;
+  type: StarType;
+  initialRadius: number;
+  initialAngle: number;
+  initialY: number;
+  orbitSpeed: number;
+  baseColor: string;
+  isDevourer?: boolean;
+  lastPlayed: number;
+  youtubeId?: string;
+}
+
+const getStarPosition = (star: StarData, time: number): THREE.Vector3 => {
+  if (star.isDevourer) {
+    return new THREE.Vector3(
+      Math.cos(time * star.orbitSpeed * 2) * star.initialRadius,
+      Math.sin(time * star.orbitSpeed * 3) * 15 + star.initialY, 
+      Math.sin(time * star.orbitSpeed * 2) * (star.initialRadius * 0.3)
+    );
+  } else {
+    const angle = star.initialAngle + time * star.orbitSpeed;
+    const floatOffset = Math.sin(time + star.initialAngle * 3) * 0.5;
+    return new THREE.Vector3(
+      Math.cos(angle) * star.initialRadius,
+      star.initialY + floatOffset,
+      Math.sin(angle) * star.initialRadius
+    );
+  }
+};
+
+const generateGalaxy = (): StarData[] => {
+  const stars: StarData[] = [];
+  const scale = 2.5; 
+  for (let i = 0; i < 50; i++) {
+    const r = (12 + Math.random() * 10) * scale; 
+    const theta = Math.random() * Math.PI * 2;
+    const isKp001 = i === 0;
+    stars.push({
+      id: `Kp.${String(i + 1).padStart(3, '0')}`,
+      type: 'original',
+      initialRadius: r,
+      initialAngle: theta,
+      initialY: (Math.random() - 0.5) * 30,
+      baseColor: "#ff4400",
+      orbitSpeed: 0.05 + Math.random() * 0.05,
+      lastPlayed: Date.now(),
+      isDevourer: i === 3,
+      youtubeId: isKp001 ? "eh8noQsIhjg" : undefined
+    });
+  }
+  for (let i = 0; i < 20; i++) {
+    const r = (25 + Math.random() * 8) * scale;
+    const theta = Math.random() * Math.PI * 2;
+    stars.push({
+      id: `Cover.${String(i + 1).padStart(2, '0')}`,
+      type: 'cover',
+      initialRadius: r,
+      initialAngle: theta,
+      initialY: (Math.random() - 0.5) * 40,
+      baseColor: "#aa00ff", orbitSpeed: 0.02 + Math.random() * 0.02, lastPlayed: Date.now()
+    });
+  }
+  for (let i = 0; i < 30; i++) {
+    const r = (35 + Math.random() * 10) * scale;
+    const theta = Math.random() * Math.PI * 2;
+    stars.push({
+      id: `Log.${String(i + 1).padStart(2, '0')}`,
+      type: 'article',
+      initialRadius: r,
+      initialAngle: theta,
+      initialY: (Math.random() - 0.5) * 50,
+      baseColor: "#00ff88", orbitSpeed: 0.01, lastPlayed: Date.now()
+    });
+  }
+  for (let i = 0; i < 150; i++) {
+    const r = (50 + Math.random() * 40) * scale;
+    const theta = Math.random() * Math.PI * 2;
+    stars.push({
+      id: `Draft.${String(i + 1).padStart(3, '0')}`,
+      type: 'draft',
+      initialRadius: r,
+      initialAngle: theta,
+      initialY: (Math.random() - 0.5) * 100,
+      baseColor: "#00ffff", orbitSpeed: 0.002 + Math.random() * 0.005, lastPlayed: Date.now()
+    });
+  }
+  return stars;
+};
+
+const initialStarData = generateGalaxy();
+
+const controlsMap = [
+  { name: 'forward', keys: ['w', 'W'] },
+  { name: 'backward', keys: ['s', 'S'] },
+  { name: 'left', keys: ['a', 'A'] },
+  { name: 'right', keys: ['d', 'D'] },
+  { name: 'up', keys: ['Space'] },
+  { name: 'down', keys: ['Shift'] },
+];
+
+// =====================================================================
+// 2. 音響システム & YouTube Player
+// =====================================================================
+
+let globalAnalyser: any = null;
+let globalTone: any = null;
+let globalMic: any = null;
+
+function useKpiaSound() {
+  const synth = useRef<any>(null); 
+  const [isMicActive, setIsMicActive] = useState(false);
+  
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      import("tone").then((Tone) => {
+        globalTone = Tone;
+        globalAnalyser = new Tone.Analyser("fft", 256);
+        globalAnalyser.smoothing = 0.85;
+        const mainFilter = new Tone.Filter(1000, "lowpass").connect(globalAnalyser).toDestination();
+        synth.current = new Tone.PolySynth(Tone.Synth).connect(mainFilter);
+      });
+    }
+  }, []);
+
+  const initAudio = async () => { if (globalTone) await globalTone.start(); };
+
+  // マイクのトグル機能
+  const toggleMic = async () => {
+      if (!globalTone) return;
+      await globalTone.start();
+
+      if (isMicActive) {
+          if (globalMic) {
+              globalMic.close();
+              globalMic.disconnect();
+              globalMic = null;
+          }
+          setIsMicActive(false);
+          alert("Audio Sensor OFF");
+      } else {
+          try {
+              globalMic = new globalTone.UserMedia();
+              await globalMic.open();
+              globalMic.connect(globalAnalyser);
+              setIsMicActive(true);
+              alert("Audio Sensor ON");
+          } catch (e) {
+              alert("Microphone access denied.");
+          }
+      }
+  };
+
+  const playNote = (id: string) => {
+    if (!globalTone || !synth.current) return;
+    const notes = ["C3", "D3", "E3", "F3", "G3", "A3", "B3"];
+    let hash = 0; for (let i = 0; i < id.length; i++) hash += id.charCodeAt(i);
+    synth.current.triggerAttackRelease(notes[hash % notes.length], "8n");
+  };
+
+  return { playNote, initAudio, toggleMic, isMicActive };
+}
+
+declare global { interface Window { onYouTubeIframeAPIReady: () => void; YT: any; } }
+
+// シークバー付きYouTubeプレイヤー
+function YouTubePlayer({ videoId }: { videoId: string }) {
+  const playerRef = useRef<any>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const feedbackTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const showFeedback = (msg: string) => {
+      if (feedbackTimer.current) clearTimeout(feedbackTimer.current);
+      setFeedback(msg);
+      feedbackTimer.current = setTimeout(() => setFeedback(null), 1500);
+  };
+
+  useEffect(() => {
+    if (!window.YT) {
+      const tag = document.createElement('script'); tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName('script')[0]; firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+    const initPlayer = () => {
+        if (playerRef.current) return;
+        playerRef.current = new window.YT.Player(containerRef.current, {
+            videoId: videoId,
+            playerVars: { autoplay: 1, controls: 0, modestbranding: 1, rel: 0, fs: 0, iv_load_policy: 3, disablekb: 1 },
+            events: {
+                onReady: (event: any) => { setDuration(event.target.getDuration()); setIsPlaying(true); },
+                onStateChange: (event: any) => { setIsPlaying(event.data === window.YT.PlayerState.PLAYING); }
+            }
+        });
+    };
+    if (window.YT && window.YT.Player) initPlayer(); else window.onYouTubeIframeAPIReady = initPlayer;
+    return () => { if (playerRef.current) { playerRef.current.destroy(); playerRef.current = null; } };
+  }, [videoId]);
+
+  useEffect(() => {
+    const interval = setInterval(() => { if (playerRef.current && playerRef.current.getCurrentTime) setCurrentTime(playerRef.current.getCurrentTime()); }, 200);
+    const handleKey = (e: KeyboardEvent) => {
+        if (!playerRef.current) return;
+        if (e.code === "Space") {
+            const state = playerRef.current.getPlayerState();
+            if (state === 1) { playerRef.current.pauseVideo(); showFeedback("⏸ PAUSE"); }
+            else { playerRef.current.playVideo(); showFeedback("▶ PLAY"); }
+            e.preventDefault();
+        }
+        if (e.code === "ArrowRight") {
+            playerRef.current.seekTo(playerRef.current.getCurrentTime() + 5, true); showFeedback("⏩ +5s"); e.preventDefault();
+        }
+        if (e.code === "ArrowLeft") {
+            playerRef.current.seekTo(playerRef.current.getCurrentTime() - 5, true); showFeedback("⏪ -5s"); e.preventDefault();
+        }
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => { clearInterval(interval); window.removeEventListener("keydown", handleKey); };
+  }, []);
+
+  const formatTime = (t: number) => { const m = Math.floor(t / 60); const s = Math.floor(t % 60); return `${m}:${s.toString().padStart(2, '0')}`; };
+  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  // シーク機能
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!playerRef.current || !duration) return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const percentage = x / rect.width;
+      const newTime = duration * percentage;
+      playerRef.current.seekTo(newTime, true);
+      setCurrentTime(newTime);
+  };
+
+  return (
+      <div className="w-full h-full relative group overflow-hidden rounded-sm border border-cyan-900/50 bg-black">
+          <div ref={containerRef} className="w-full h-full absolute inset-0 pointer-events-none" />
+          
+          {feedback && (
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none animate-ping-short">
+                  <div className="bg-black/70 border border-cyan-500 px-4 py-2 text-cyan-400 font-bold font-mono text-xl tracking-widest shadow-lg shadow-cyan-500/20">{feedback}</div>
+              </div>
+          )}
+
+          {/* UHD Overlay (常時表示) */}
+          <div className="absolute inset-0 flex flex-col justify-end p-0 pointer-events-none z-10">
+              <div className="bg-black/80 w-full p-2 pointer-events-auto backdrop-blur-sm border-t border-gray-800">
+                  {/* シークバー (クリック可能エリアを広めに取る) */}
+                  <div className="w-full h-4 mb-1 cursor-pointer flex items-center group/seek" onClick={handleSeek}>
+                      <div className="w-full h-1 bg-gray-700 relative rounded-full overflow-hidden group-hover/seek:h-2 transition-all">
+                          <div className="absolute top-0 left-0 h-full bg-cyan-500 shadow-[0_0_8px_#00ffff]" style={{ width: `${progress}%` }} />
+                      </div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center font-mono text-cyan-400 text-[10px] tracking-wider">
+                      <div className="flex gap-3 items-center">
+                          <button onClick={() => { 
+                              if(isPlaying) playerRef.current.pauseVideo(); else playerRef.current.playVideo(); 
+                          }} className="hover:text-white cursor-pointer">
+                              {isPlaying ? "⏸" : "▶"}
+                          </button>
+                          <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
+                      </div>
+                      <div className="flex gap-2 text-gray-500 text-[9px]">
+                          <span>[← -5s]</span>
+                          <span>[SPC]</span>
+                          <span>[+5s →]</span>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      </div>
+  );
+}
+
+// =====================================================================
+// 3. ビジュアルコンポーネント & カメラ制御
+// =====================================================================
+
+function GiantOrganicRNA({ isFeeding }: { isFeeding: boolean }) {
+  const groupRef = useRef<THREE.Group>(null);
+  const COUNT = 120; 
+
+  const baseStructure = useMemo(() => {
+    const temp = [];
+    for (let i = 0; i < COUNT; i++) {
+      const t = i / COUNT;
+      const angle = t * Math.PI * 24; 
+      const y = (t - 0.5) * 400;
+      const radius = 8 + Math.sin(t * Math.PI * 8) * 3; 
+      const dir = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).normalize();
+      const pos = new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+      const baseTip = new THREE.Vector3(Math.cos(angle) * (radius * 0.4), y, Math.sin(angle) * (radius * 0.4));
+      pos.x += (Math.random() - 0.5) * 3; pos.z += (Math.random() - 0.5) * 3;
+      temp.push({ pos, baseTip, dir, id: i });
+    }
+    return temp;
+  }, []);
+
+  const lineRefs = useRef<any[]>([]);
+  const cellRefs = useRef<any[]>([]);
+  const baseOrange = useMemo(() => new THREE.Color("#ff4400"), []);
+  const hotOrange = useMemo(() => new THREE.Color("#ffaa00"), []);
+
+  useFrame((state) => {
+    let freqData: Float32Array | null = null;
+    if (globalAnalyser) freqData = globalAnalyser.getValue();
+
+    if (groupRef.current) groupRef.current.rotation.y += isFeeding ? 0.02 : 0.002;
+
+    if (freqData) {
+        baseStructure.forEach((item, i) => {
+            const dataIndex = Math.floor((i / COUNT) * 64);
+            const db = freqData![dataIndex];
+            const volume = Math.max(0, (db + 100) / 100);
+            const intensity = volume * volume * 25.0; 
+            const offset = item.dir.clone().multiplyScalar(intensity);
+            const newPos = item.pos.clone().add(offset);
+
+            const line = lineRefs.current[i];
+            if (line) line.setPoints(newPos, item.baseTip);
+
+            const cell = cellRefs.current[i];
+            if (cell) {
+                cell.position.copy(newPos);
+                cell.material.color.copy(baseOrange);
+                cell.material.emissive.lerpColors(baseOrange, hotOrange, volume);
+                // ★修正: 発光量を抑える (0.1 ~ 0.8)
+                cell.material.emissiveIntensity = 0.1 + volume * 0.7; 
+                cell.scale.setScalar(4.5 + volume * 2);
+            }
+        });
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      {baseStructure.map((item, i) => (
+        <group key={i}>
+           <ReactiveLine ref={(el:any) => (lineRefs.current[i] = el)} start={item.pos} end={item.baseTip} isFeeding={isFeeding} />
+           <mesh ref={(el) => (cellRefs.current[i] = el)} position={item.pos} scale={4.5}>
+              <sphereGeometry args={[1, 16, 16]} />
+              {/* ★修正: 液体金属感(高metalness)とヌメり(適度なroughness) */}
+              <meshStandardMaterial color="#ff4400" emissive="#ff4400" emissiveIntensity={0.1} metalness={0.8} roughness={0.2} />
+           </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+
+const ReactiveLine = React.forwardRef(({ start, end, isFeeding }: any, ref: any) => {
+    const geometryRef = useRef<THREE.BufferGeometry>(null);
+    React.useImperativeHandle(ref, () => ({
+        setPoints: (newStart: THREE.Vector3, newEnd: THREE.Vector3) => {
+            if (geometryRef.current) geometryRef.current.setFromPoints([newStart, newEnd]);
+        }
+    }));
+    return <line><bufferGeometry ref={geometryRef} /><lineBasicMaterial color={isFeeding ? "#ffaa00" : "#882200"} linewidth={2} transparent opacity={0.8} /></line>;
+});
+ReactiveLine.displayName = "ReactiveLine";
+
+function OrbitPath({ radius, y }: { radius: number, y: number }) {
+  return (
+    <group rotation={[-Math.PI / 2, 0, 0]} position={[0, y, 0]}>
+      <Ring args={[radius - 0.05, radius + 0.05, 128]}><meshBasicMaterial color="#333" transparent opacity={0.15} side={THREE.DoubleSide} /></Ring>
+    </group>
+  )
+}
+
+function DynamicFlowLine({ startStar, endStar }: { startStar: StarData, endStar: StarData }) {
+  const lineRef = useRef<any>(null);
+  useFrame((state) => {
+    if (lineRef.current && lineRef.current.geometry) {
+      const time = state.clock.getElapsedTime();
+      const start = getStarPosition(startStar, time);
+      const end = getStarPosition(endStar, time);
+      if (startStar.isDevourer || endStar.isDevourer) lineRef.current.visible = Math.random() > 0.1;
+      lineRef.current.geometry.setPositions([start.x, start.y, start.z, end.x, end.y, end.z]);
+      if (lineRef.current.material) lineRef.current.material.dashOffset -= 0.01;
+    }
+  });
+  return <Line ref={lineRef} points={[[0,0,0], [0,0,0]]} color="#ff4400" lineWidth={1} dashed dashScale={2} dashSize={0.5} gapSize={0.2} transparent opacity={0.4} />;
+}
+
+function CameraManager({ mode, targetStar, controlsRef }: { mode: 'FREE' | 'OVERVIEW' | 'LANDING', targetStar: StarData | null, controlsRef: any }) {
+  const { camera } = useThree();
+  useEffect(() => {
+    if (!controlsRef.current) return;
+    if (mode === 'OVERVIEW') { controlsRef.current.target.set(0, 0, 0); camera.position.set(0, 150, 200); } 
+    else if (mode === 'FREE') { controlsRef.current.target.set(0, 0, 0); }
+  }, [mode, camera, controlsRef]);
+  useFrame((state) => {
+    if (mode === 'LANDING' && targetStar && controlsRef.current) {
+        controlsRef.current.target.lerp(getStarPosition(targetStar, state.clock.getElapsedTime()), 0.1);
+    }
+  });
+  return null;
+}
+
+function SpectatorControls({ active }: { active: boolean }) {
+  const [, get] = useKeyboardControls();
+  const { camera } = useThree();
+  useFrame(() => {
+    if (!active) return;
+    const { forward, backward, left, right, up, down } = get();
+    const speed = 0.8;
+    const front = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion); front.y = 0; front.normalize();
+    const side = new THREE.Vector3().crossVectors(front, new THREE.Vector3(0, 1, 0)).normalize();
+    if (forward) camera.position.add(front.multiplyScalar(speed));
+    if (backward) camera.position.add(front.multiplyScalar(-speed));
+    if (right) camera.position.add(side.multiplyScalar(speed));
+    if (left) camera.position.add(side.multiplyScalar(-speed));
+    if (up) camera.position.y += speed;
+    if (down) camera.position.y -= speed;
+  });
+  return null;
+}
+
+function Star({ data, clicks, setRef, onSelect, onHover, onLeave }: any) {
+    const isDraft = data.type === 'draft';
+    const heat = Math.min(clicks, 10);
+    const baseColorObj = new THREE.Color(data.baseColor);
+    const whiteColor = new THREE.Color("#ffffff");
+    const cyanColor = new THREE.Color("#aaffff");
+    const displayColor = useMemo(() => {
+        if (data.isDevourer) return new THREE.Color("#ff00ff");
+        if (heat <= 5) return baseColorObj.clone().lerp(whiteColor, heat / 5);
+        else return whiteColor.clone().lerp(cyanColor, (heat - 5) / 5);
+    }, [clicks, data.baseColor]);
+    const displayColorHex = "#" + displayColor.getHexString();
+    const growScale = 1 + Math.log(clicks + 1) * 0.8;
+    const finalScale = (isDraft ? 1.0 : (data.isDevourer ? 2.5 : 1.2)) * growScale;
+    const isActive = clicks > 0 || data.isDevourer;
+    const emissiveColor = isActive ? displayColorHex : "#000000";
+    const emissiveIntensity = isActive ? (data.isDevourer ? 3 : 1.0 + (heat / 10) * 4.0) : 0;
+
+    return (
+        <group ref={setRef}>
+            <mesh onClick={(e) => { e.stopPropagation(); onSelect(data.id, data.type); }} onPointerOver={(e) => { e.stopPropagation(); onHover(data); }} onPointerOut={(e) => { e.stopPropagation(); onLeave(); }} scale={finalScale}>
+                {isDraft ? <icosahedronGeometry args={[0.08, 0]} /> : (data.type === 'article' ? <boxGeometry args={[0.2, 0.2, 0.2]} /> : <sphereGeometry args={[0.12, 32, 32]} />)}
+                <meshStandardMaterial color={displayColorHex} emissive={emissiveColor} emissiveIntensity={emissiveIntensity} metalness={0.9} roughness={0.2} wireframe={isDraft || data.isDevourer} />
+            </mesh>
+            {isActive && !isDraft && !data.isDevourer && <Sparkles count={3} scale={finalScale * 1.5} size={2} color={displayColorHex} opacity={0.5} />}
+            {isActive && !isDraft && <Text position={[0, 0.6 * finalScale, 0]} fontSize={0.15 * finalScale} color="white">{data.id}</Text>}
+        </group>
+    );
+}
+
+function GalaxySystem({ stars, starStats, onSelect, onHover, onLeave }: any) {
+  const starRefs = useRef<(THREE.Group | null)[]>([]);
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    starRefs.current.forEach((ref, i) => {
+      if (!ref) return;
+      const data = stars[i];
+      if (data.isDevourer) {
+        if (Math.random() < 0.01) ref.position.set((Math.random() - 0.5) * 100, (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 100);
+        ref.position.x += (Math.random() - 0.5) * 1.5; ref.position.y += (Math.random() - 0.5) * 1.5; ref.position.z += (Math.random() - 0.5) * 1.5;
+        ref.rotation.x += 0.2; ref.rotation.y += 0.2;
+      } else {
+        const pos = getStarPosition(data, t); ref.position.copy(pos); ref.rotation.y += 0.01;
+      }
+    });
+  });
+  return (
+    <group>
+      {stars.map((data: StarData, i: number) => (
+        <group key={data.id}>
+          {!data.isDevourer && data.type !== 'draft' && <OrbitPath radius={data.initialRadius} y={data.initialY} />}
+          <Star data={data} clicks={starStats[data.id] || 0} setRef={(el: THREE.Group) => (starRefs.current[i] = el)} onSelect={onSelect} onHover={onHover} onLeave={onLeave} />
+        </group>
+      ))}
+    </group>
+  );
+}
+
+// =====================================================================
+// 5. メインコンポーネント (UI)
+// =====================================================================
 
 export default function Home() {
+  const { playNote, initAudio, toggleMic, isMicActive } = useKpiaSound();
+  const [hasEntered, setHasEntered] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(true); // 初期表示
+  const [terminalIndex, setTerminalIndex] = useState(0);
+  const [stars] = useState<StarData[]>(initialStarData);
+  const [history, setHistory] = useState<string[]>([]);
+  const [starStats, setStarStats] = useState<{[key:string]:number}>({});
+  const [isFeeding, setIsFeeding] = useState(false);
+  const [savedRoutes, setSavedRoutes] = useState<string[]>([]);
+  const [cameraMode, setCameraMode] = useState<'FREE' | 'OVERVIEW' | 'LANDING'>('FREE');
+  const [selectedStar, setSelectedStar] = useState<StarData | null>(null);
+  const [popupStar, setPopupStar] = useState<StarData | null>(null);
+  const popupTimer = useRef<NodeJS.Timeout | null>(null);
+  const controlsRef = useRef<any>(null); 
+
+  const handleHover = (star: StarData) => { if (popupTimer.current) clearTimeout(popupTimer.current); setPopupStar(star); };
+  const handleLeave = () => { popupTimer.current = setTimeout(() => { setPopupStar(null); }, 3000); };
+  const handleSelect = (id: string, type: StarType) => {
+    playNote(id); setIsFeeding(true); setTimeout(() => setIsFeeding(false), 200);
+    const target = stars.find(s => s.id === id) || null; setSelectedStar(target); setPopupStar(target);
+    const idx = stars.findIndex(s => s.id === id); if (idx !== -1) setTerminalIndex(idx);
+    if (type !== 'draft') { setStarStats(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 })); }
+    setHistory(prev => [...prev, id]);
+  };
+
+  const saveRoute = () => {
+    if (history.length === 0) { alert("Route is empty."); return; }
+    const routeId = `Kp-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    localStorage.setItem(routeId, JSON.stringify({ history, stats: starStats }));
+    setSavedRoutes(prev => [...prev, routeId]); alert(`Saved: ${routeId}`);
+  };
+  const loadRoute = (id: string) => {
+    const saved = localStorage.getItem(id); if (!saved) return;
+    const data = JSON.parse(saved); setHistory(data.history); setStarStats(data.stats || {}); alert(`Loaded: ${id}`);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!hasEntered) return;
+      if (e.key === 't' || e.key === 'T') setShowTerminal(prev => !prev);
+      if (e.key === 'o' || e.key === 'O') setCameraMode(prev => prev === 'OVERVIEW' ? 'FREE' : 'OVERVIEW');
+      if (e.key === 'f' || e.key === 'F') toggleMic();
+      if (e.key === 'Escape') setCameraMode('FREE');
+      if (e.key === 'l' || e.key === 'L') {
+          if (cameraMode === 'LANDING') { setCameraMode('FREE'); } 
+          else if (popupStar) { handleSelect(popupStar.id, popupStar.type); setCameraMode('LANDING'); setPopupStar(null); } 
+          else if (selectedStar) { setCameraMode('LANDING'); setPopupStar(null); }
+      }
+      if (showTerminal && cameraMode === 'FREE') {
+        if (e.key === 'ArrowDown') setTerminalIndex(prev => (prev + 1) % stars.length);
+        if (e.key === 'ArrowUp') setTerminalIndex(prev => (prev - 1 + stars.length) % stars.length);
+        if (e.key === 'Enter') handleSelect(stars[terminalIndex].id, stars[terminalIndex].type);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown); return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasEntered, showTerminal, terminalIndex, cameraMode, stars, popupStar, selectedStar, history, starStats, toggleMic]);
+
+  useEffect(() => { if (typeof window !== "undefined") { const keys = Object.keys(localStorage).filter(k => k.startsWith("Kp-")); setSavedRoutes(keys); } }, [hasEntered]);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <KeyboardControls map={controlsMap}>
+      <main className="h-screen w-full bg-black overflow-hidden relative">
+        {!hasEntered && (
+          <div className="absolute inset-0 z-50 bg-black flex flex-col items-center justify-center text-orange-500 font-mono">
+            <h1 className="text-4xl font-bold mb-4 tracking-widest glow-text">KPIA.SYSTEM</h1>
+            <p className="text-xs mb-8 text-gray-500">WASD: Move | MOUSE: Look | L: Land | T: HUD | F: Audio</p>
+            <button onClick={() => { setHasEntered(true); initAudio(); }} className="px-8 py-3 border border-orange-500 hover:bg-orange-900/50 text-white transition-all">INITIALIZE SYSTEM</button>
+          </div>
+        )}
+        <div className="absolute inset-0 z-0">
+          <Canvas camera={{ position: [0, 5, 60], fov: 60 }}>
+            <color attach="background" args={['#050505']} />
+            <ambientLight intensity={0.1} />
+            <pointLight position={[0, 0, 0]} intensity={20} color="#ff8800" distance={200} />
+            <Environment preset="city" />
+            <Grid position={[0, -30, 0]} args={[400, 400]} cellSize={5} cellThickness={0.5} cellColor="#222222" sectionSize={25} sectionThickness={1} sectionColor="#444444" fadeDistance={200} />
+            <CameraManager mode={cameraMode} targetStar={selectedStar} controlsRef={controlsRef} />
+            <SpectatorControls active={cameraMode === 'FREE'} />
+            <OrbitControls ref={controlsRef} enableZoom={true} enablePan={false} rotateSpeed={0.5} dampingFactor={0.1} maxDistance={300} enabled={true} />
+            <GiantOrganicRNA isFeeding={isFeeding} />
+            <GalaxySystem stars={stars} starStats={starStats} onSelect={handleSelect} onHover={handleHover} onLeave={handleLeave} />
+            {history.map((id, i) => {
+              if (i === 0) return null;
+              const startStar = stars.find(s => s.id === history[i-1]); const endStar = stars.find(s => s.id === id);
+              if (!startStar || !endStar) return null; return <DynamicFlowLine key={i} startStar={startStar} endStar={endStar} />;
+            })}
+            <EffectComposer><Bloom intensity={isFeeding ? 3.0 : 1.5} luminanceThreshold={0.1} radius={0.6} /></EffectComposer>
+          </Canvas>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        {/* POPUP INFO */}
+        {hasEntered && popupStar && cameraMode !== 'LANDING' && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 mt-12 pointer-events-none z-20 text-center animate-slide-up">
+                <div className="text-cyan-400 font-bold font-mono tracking-widest text-sm bg-black/80 px-4 py-2 border border-cyan-900 shadow-lg shadow-cyan-900/20">TARGET: {popupStar.id}</div>
+                <div className="text-cyan-600 text-[10px] font-mono mt-1 blink">PRESS [L] TO LAND</div>
+            </div>
+        )}
+
+        {/* LANDING OVERLAY (Terminalとは独立して表示) */}
+        {hasEntered && cameraMode === 'LANDING' && selectedStar && (
+            <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+                <div className="absolute bottom-24 right-24 bg-black/80 border border-cyan-500 p-6 w-96 backdrop-blur-md pointer-events-auto animate-slide-up">
+                    <h2 className="text-xl font-bold text-cyan-400 mb-2">{selectedStar.id}</h2>
+                    <div className="text-gray-400 text-xs mb-4 font-mono">Type: {selectedStar.type.toUpperCase()} | Status: ACTIVE</div>
+                    <div className="aspect-video bg-gray-900 border border-gray-700 flex items-center justify-center text-gray-500 mb-2 text-xs relative pointer-events-auto">
+                        {selectedStar.youtubeId ? (<YouTubePlayer videoId={selectedStar.youtubeId} />) : (<span>[ DATA ENCRYPTED - AUDIO SENSOR ONLY ]</span>)}
+                    </div>
+                    <p className="text-gray-300 text-xs leading-relaxed">{selectedStar.youtubeId ? "Decryption complete. Accessing media archive." : "No visual data. Analysis mode active."}</p>
+                </div>
+            </div>
+        )}
+
+        {/* HUD UI (Terminal Toggle対象) */}
+        {hasEntered && showTerminal && (
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-0 left-0 w-full p-4 flex justify-between items-start bg-gradient-to-b from-black/90 to-transparent">
+               <div className="text-orange-500 font-mono tracking-widest"><h2 className="text-xl font-bold">KPIA.SYSTEM</h2><span className="text-[10px] opacity-70">VER {PROFILE_DATA.ver} // {cameraMode} MODE</span></div>
+               <div className="text-right text-[10px] font-mono text-gray-500">UPTIME: ∞<br/>STATUS: STABLE</div>
+            </div>
+            <div className="absolute top-20 left-8 w-80 max-h-[85vh] overflow-y-auto font-mono text-orange-500 pointer-events-auto no-scrollbar">
+                <div className="flex flex-col gap-6">
+                    <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
+                        <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ USER PROFILE ]</h3>
+                        <div className="text-lg font-bold text-white mb-1">{PROFILE_DATA.name}</div>
+                        <p className="text-xs text-gray-300 leading-relaxed whitespace-pre-line mb-4">{PROFILE_DATA.bio}</p>
+                        <div className="space-y-2">{PROFILE_DATA.links.map((link, i) => (<a key={i} href={link.url} target="_blank" rel="noopener noreferrer" className="block text-[10px] p-2 border border-gray-700 hover:bg-orange-900/30 hover:border-orange-500 transition-all text-white">{link.label} ↗</a>))}</div>
+                    </div>
+                    <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
+                        <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ LIVE INFO ]</h3>
+                        <div className="space-y-3">{LIVE_INFO_DATA.map((item, i) => (<div key={i} className="flex gap-3 text-xs border-b border-gray-800 pb-2"><div className="flex flex-col items-center justify-center bg-gray-900 px-2 py-1 border border-gray-700 w-12 text-center"><span className="text-[10px] text-gray-500">{item.date.split('.')[1]}</span><span className="text-lg font-bold text-orange-500 leading-none">{item.date.split('.')[2]}</span></div><div className="flex-1"><div className="text-white font-bold">{item.title}</div><div className="flex justify-between text-[10px] text-gray-400 mt-1"><span>@ {item.location}</span><span className="text-orange-400">[{item.type}]</span></div></div></div>))}</div>
+                    </div>
+                    <div className="p-4 bg-black/70 border-l-2 border-orange-500 backdrop-blur-sm">
+                        <h3 className="text-xs font-bold mb-2 opacity-70 border-b border-orange-900 pb-1">[ SCHEDULE ]</h3>
+                        <div className="space-y-2">{SCHEDULE_DATA.map((item, i) => (<div key={i} className="text-xs flex gap-2"><span className="text-gray-500">{item.date}</span><span className="border border-gray-700 px-1 text-[10px] text-orange-300">{item.category}</span><span className="text-gray-300">{item.text}</span></div>))}</div>
+                    </div>
+                </div>
+            </div>
+            <div className="absolute top-20 right-8 w-72 h-[75vh] font-mono text-orange-500 pointer-events-auto flex flex-col">
+                <div className="bg-black/70 border-r-2 border-orange-500 backdrop-blur-sm flex-1 overflow-hidden flex flex-col">
+                    <h3 className="p-2 text-xs font-bold border-b border-gray-800 bg-black/80">[ STAR DATABASE ]</h3>
+                    <div className="flex-1 overflow-y-auto p-2 no-scrollbar"><ul className="space-y-1">{stars.map((s, i) => { let typeColor = "text-orange-500"; if (s.type === 'cover') typeColor = "text-purple-400"; if (s.type === 'article') typeColor = "text-green-400"; if (s.type === 'draft') typeColor = "text-cyan-600"; return (<li key={s.id} className={`text-xs p-1 ${i === terminalIndex ? "bg-orange-900/50" : ""}`} onMouseEnter={() => setTerminalIndex(i)}><button onClick={(e) => { handleSelect(s.id, s.type); e.currentTarget.blur(); }} className={`w-full text-left flex justify-between ${s.isDevourer ? "animate-pulse text-red-500" : typeColor}`}><span>{s.id}</span><span className="opacity-30">{s.type}</span></button></li>) })}</ul></div>
+                </div>
+            </div>
+            <div className="absolute bottom-8 left-0 w-full px-8 flex justify-between items-end font-mono text-orange-500 pointer-events-auto">
+               <div className="w-64 bg-black/70 border-t-2 border-orange-500 backdrop-blur-sm p-2"><h3 className="text-[10px] font-bold mb-1 opacity-70">[ SAVED ROUTES ]</h3><div className="max-h-32 overflow-y-auto space-y-1 no-scrollbar">{savedRoutes.length === 0 && <span className="text-[10px] text-gray-600">No data.</span>}{savedRoutes.map(id => <button key={id} onClick={() => loadRoute(id)} className="block w-full text-left text-[10px] px-2 py-1 bg-gray-900 hover:bg-gray-700 text-white rounded">{id}</button>)}</div></div>
+               <div className="flex gap-4 items-end">
+                   <button onClick={toggleMic} className={`px-6 py-3 border border-orange-500 text-xs hover:bg-orange-900/50 text-white font-bold transition-all ${isMicActive ? "bg-orange-600" : "bg-black/80"}`}>AUDIO SENSOR {isMicActive ? "[ON]" : "[OFF]"}</button>
+                   <button onClick={() => setCameraMode(prev => prev === 'OVERVIEW' ? 'FREE' : 'OVERVIEW')} className={`px-6 py-3 border border-orange-500 text-xs font-bold transition-all ${cameraMode === 'OVERVIEW' ? 'bg-orange-500 text-black' : 'bg-black/80 text-white hover:bg-orange-900/50'}`}>{cameraMode === 'OVERVIEW' ? "EXIT OVERVIEW" : "OVERVIEW [O]"}</button>
+                   {popupStar && cameraMode !== 'LANDING' && (<button onClick={() => { handleSelect(popupStar.id, popupStar.type); setCameraMode('LANDING'); setPopupStar(null); }} className="px-6 py-3 bg-black/80 border border-cyan-500 text-xs text-cyan-400 hover:bg-cyan-900/50 font-bold transition-all animate-pulse">LAND [L]</button>)}
+                   {cameraMode === 'LANDING' && (<button onClick={() => setCameraMode('FREE')} className="px-6 py-3 bg-red-900/80 border border-red-500 text-xs text-white hover:bg-red-700 font-bold transition-all">ABORT LANDING [L]</button>)}
+               </div>
+               <div className="flex gap-2"><button onClick={saveRoute} className="px-4 py-3 bg-black/80 border border-gray-500 text-xs hover:bg-gray-800 text-gray-300">SAVE</button><button onClick={() => setHistory([])} className="px-4 py-3 bg-black/80 border border-red-900 text-xs text-red-500 hover:bg-red-900/30">CLR</button></div>
+            </div>
+          </div>
+        )}
+        <style jsx global>{` 
+            .glow-text { text-shadow: 0 0 20px #ff4400; } 
+            .animate-slide-in { animation: slide-in 0.3s ease-out; } 
+            .animate-slide-up { animation: slide-up 0.5s ease-out; }
+            .blink { animation: blink 1s infinite; }
+            .animate-ping-short { animation: ping-short 0.5s cubic-bezier(0, 0, 0.2, 1) infinite; }
+            @keyframes ping-short { 75%, 100% { transform: scale(1.5); opacity: 0; } }
+            @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+            @keyframes slide-in { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+            @keyframes slide-up { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+            .no-scrollbar::-webkit-scrollbar { display: none; }
+            .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        `}</style>
       </main>
-    </div>
+    </KeyboardControls>
   );
 }
