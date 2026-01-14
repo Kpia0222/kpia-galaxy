@@ -54,30 +54,79 @@ interface EntityData {
 }
 
 const GALAXY_DATA: EntityData[] = Array.from({ length: 50 }, (_, i) => {
+  // 1. カテゴリーの決定 (均等に割り振るためのロジック)
+  const categories = ["Original", "Remix", "Bootleg", "Cover", "WIP", "???"];
+  const category = categories[i % categories.length];
+
   const starId = `Kp.${String(i + 1).padStart(4, '0')}`;
   const starIndex = i + 1;
-  const hasRemix = Math.random() > 0.5;
-  const planets: EntityData[] = [];
   const randomInc = () => [(Math.random() - 0.5) * 0.4, 0, (Math.random() - 0.5) * 0.4] as [number, number, number];
 
-  let youtubeId = i % 3 === 0 ? "dQw4w9WgXcQ" : undefined;
+  // 2. 思想に基づく「距離」「色」「サイズ」の設定
+  let distance = 0;
+  let color = "";
+  let size = 1.0;
+
+  switch (category) {
+    case "Original":
+      distance = 20 + Math.random() * 15; // 中心に近い
+      color = "#ff4400"; // 情熱的な赤・オレンジ
+      break;
+    case "Cover":
+      distance = 40 + Math.random() * 15; // 中心に近い（整理されたエリア）
+      color = "#ffffff"; // 他者を反射する白
+      break;
+    case "Remix":
+      distance = 60 + Math.random() * 20; // 中間層
+      color = "#00ffff"; // デジタルなシアン
+      break;
+    case "WIP":
+      distance = 100 + Math.random() * 20; // 中間層（成長中）
+      color = "#ccff00"; // 輝くライムイエロー
+      size = 0.3; // 【重要】WIPは小さく設定
+      break;
+    case "Bootleg":
+      distance = 80 + Math.random() * 25; // 遠い（逸脱エリア）
+      color = "#ff00ff"; // 禁忌のマゼンタ
+      break;
+    case "???":
+      distance = 120 + Math.random() * 30; // 最も遠い（理の外）
+      color = "#111111"; // 深い紫
+      break;
+  }
+
+  // 3. YouTube ID (OriginalやCoverなど実体があるものに優先的に割り振る)
+  let youtubeId = (category === "Original" || category === "Remix" || category === "Cover") && i % 2 === 0
+    ? "dQw4w9WgXcQ"
+    : undefined;
   if (starIndex === 1) youtubeId = "eh8noQsIhjg";
 
-  if (hasRemix) {
+  // 4. 子要素（惑星/衛星）の生成ロジック (Remixの場合は特に豪華にするなど)
+  const planets: EntityData[] = [];
+  if (category === "Original" || category === "Remix") {
     const planetCount = Math.floor(Math.random() * 2) + 1;
     for (let j = 0; j < planetCount; j++) {
-      const planetId = `${starId}-Rmx${j + 1}`;
-      const satellites = [1, 2].map(v => ({
-        id: `${planetId}-v${v}`, type: 'satellite' as EntityType, label: `ver${v}`, color: '#888888', size: 0.12, distance: 1.2 + v * 0.3, speed: 1.5 - v * 0.2, inclination: randomInc(), phase: Math.random() * 6
-      }));
+      const planetId = `${starId}-Sub${j + 1}`;
       planets.push({
-        id: planetId, type: 'planet', label: `Remix Vol.${j + 1}`, color: '#00ffff', size: 0.35, distance: 6 + j * 2.5, speed: 0.3, inclination: randomInc(), phase: Math.random() * 6, children: satellites, category: "Remix"
+        id: planetId, type: 'planet', label: `Analysis ${j + 1}`, color: color, size: 0.35, distance: 6 + j * 2.5, speed: 0.3, inclination: randomInc(), phase: Math.random() * 6, category: category
       });
     }
   }
 
   return {
-    id: starId, type: 'star', label: starId, color: i === 0 ? '#ff0000' : '#ffaa00', size: 1.0, distance: 25 + Math.random() * 35, speed: 0.02 + Math.random() * 0.03, inclination: randomInc(), phase: Math.random() * 6, youtubeId: youtubeId, children: planets, category: "Original", clicks: Math.floor(Math.random() * 500)
+    id: starId,
+    type: 'star',
+    label: starId,
+    category: category, // カテゴリーを保存
+    color: color,
+    size: size,
+    distance: distance,
+    speed: 0.01 + Math.random() * 0.03,
+    inclination: randomInc(),
+    phase: Math.random() * 6,
+    youtubeId: youtubeId,
+    children: planets,
+    clicks: Math.floor(Math.random() * 500)
   };
 });
 
@@ -169,11 +218,57 @@ function StarObj({ data, focusId, onSelect }: { data: EntityData, focusId: strin
   const hoverCtx = useContext(HoverContext);
   const isHovered = hoverCtx?.hoveredId === data.id;
   const isFocused = focusId === data.id;
+
+  // 形状と光の分岐ロジック
+  const getVisualsByCategory = (category: string, isFocused: boolean) => {
+    switch (category) {
+      case 'Original':
+        return {
+          geom: <dodecahedronGeometry args={[1, 0]} />,
+          emissiveIntensity: isFocused ? 2.5 : 0.8
+        };
+      case 'Remix':
+        return {
+          geom: <torusKnotGeometry args={[0.5, 0.15, 64, 16]} />,
+          emissiveIntensity: isFocused ? 2.0 : 0.6
+        };
+      case 'Bootleg':
+        return {
+          geom: <tetrahedronGeometry args={[1, 0]} />,
+          emissiveIntensity: 3.0 // 常に少し強く発光
+        };
+      case 'Cover':
+        return {
+          geom: <icosahedronGeometry args={[1, 1]} />,
+          emissiveIntensity: 0.5
+        };
+      case 'WIP':
+        return {
+          geom: <boxGeometry args={[0.4, 0.4, 0.4]} />, // 小さな立方体（骨組み）
+          emissiveIntensity: 10.0 // 圧倒的な輝度
+        };
+      case '???':
+        return {
+          geom: <sphereGeometry args={[data.size * 1.5, 2, 2]} />,
+          wireframe: true,
+          flatShading: true,
+          color: "#000000", // 真っ黒
+        };
+      default:
+        return { geom: <sphereGeometry args={[1, 16, 16]} />, emissiveIntensity: 0.5 };
+    }
+  };
   return (
     <OrbitGroup data={data}>
       <CelestialBody data={data} onClick={onSelect}>
-        <icosahedronGeometry args={[data.size, 0]} />
-        <meshStandardMaterial color={data.color} emissive={data.color} emissiveIntensity={isFocused || isHovered ? 2 : 0.5} wireframe={!data.youtubeId} />
+        <icosahedronGeometry args={[data.size, 1]} />
+        <meshStandardMaterial
+          color={data.color}
+          emissive={data.color}
+          emissiveIntensity={isFocused || isHovered ? 2 : 0.5}
+          flatShading={true}
+          wireframe={!data.youtubeId}
+        />
       </CelestialBody>
       <Billboard position={[0, 2, 0]}>
         {!isFocused && <Text fontSize={0.8} color="white" anchorY="bottom">{data.label}</Text>}
@@ -314,6 +409,10 @@ export default function Home() {
   const handleNavigate = (id: string) => {
     const entity = flattenedData.find(e => e.id === id);
     if (!entity) return;
+    if (entity.category === '???') {
+      setIsTransitioning(true);
+      setTimeout(() => setIsTransitioning(false), 800);
+    }
     setIsOverview(false);
     setFocusId(entity.id);
     if (entity.type === 'star') setCurrentMode('STAR');
@@ -371,8 +470,10 @@ export default function Home() {
     <KeyboardControls map={controlsMap}>
       <RefContext.Provider value={refMap}>
         <HoverContext.Provider value={{ hoveredId, setHoveredId }}>
-          <main className="h-screen w-full bg-black overflow-hidden relative font-mono text-white select-none ${isTransitioning ? 'shake' : ''}">
-
+          <main className={`
+          h-screen w-full bg-black overflow-hidden relative font-mono text-white select-none
+          ${(isTransitioning && targetEntity?.category === '???') ? 'taboo-active' : ''}
+         `}>
             <div className="absolute inset-0 z-0">
               <Canvas camera={{ position: [0, 60, 100], fov: 60 }}>
                 <color attach="background" args={['#010101']} />
@@ -394,15 +495,14 @@ export default function Home() {
 
                 <EffectComposer>
                   {/* 強めの発光 */}
-                  <Bloom intensity={1.5} luminanceThreshold={0.2} mipmapBlur />
 
                   {/* 走査線：システムモニター感を演出 */}
-                  <Scanline opacity={0.1} density={1.2} />
+                  <Scanline opacity={0.3} density={10.2} />
 
                   {/* 色収差：レンズの端で色が滲むような効果（デジタルな歪み） */}
                   <ChromaticAberration
                     blendFunction={BlendFunction.NORMAL}
-                    offset={new THREE.Vector2(0.0015, 0.0015)}
+                    offset={new THREE.Vector2(0.003, 0.0015)}
                   />
 
                   {/* 秩序あるノイズ：opacityを少し上げ、質感を出す */}
@@ -552,6 +652,7 @@ export default function Home() {
         }
 
        /* style jsx global の中に追加 */
+       
        @keyframes screen-shake {
          0% { transform: translafte(0,0) }
          25% { transform: translate(2px, -2px) }
@@ -563,6 +664,20 @@ export default function Home() {
          .shake {
            animation: screen-shake 0.2s infinite;
          }
+
+      /* 禁忌モード：全体の色を反転させ、ノイズを走らせる */
+      .taboo-active {
+       filter: invert(1) hue-rotate(180deg);
+       animation: taboo-shake 0.1s infinite;
+      }
+
+       @keyframes taboo-shake {
+         0% { transform: translate(2px, 2px) rotate(0deg); }
+         25% { transform: translate(-2px, -2px) rotate(1deg); }
+         50% { transform: translate(3px, 0px) rotate(-1deg); }
+         75% { transform: translate(-3px, 1px) rotate(0deg); }
+         100% { transform: translate(2px, -1px) rotate(1deg); }
+       }
 
      `}</style>
     </KeyboardControls >
