@@ -4,7 +4,7 @@
 import React, { useRef, useState, useEffect, useMemo, createContext, useContext } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Text, Environment, Sparkles, KeyboardControls, useKeyboardControls, Grid, Billboard, Line, Float, Html, Torus } from "@react-three/drei";
-import { EffectComposer, Bloom, Noise, Vignette,  ChromaticAberration, Glitch, Scanline } from "@react-three/postprocessing";
+import { EffectComposer, Bloom, Noise, Vignette, ChromaticAberration, Glitch, Scanline } from "@react-three/postprocessing";
 import * as THREE from "three";
 import { BlendFunction, GlitchMode } from "postprocessing";
 
@@ -13,13 +13,13 @@ import { BlendFunction, GlitchMode } from "postprocessing";
 // =====================================================================
 
 const SOCIAL_LINKS = [
-  { name: "YouTube", url: "https://www.youtube.com/@popKpia", label: "YT" },
-  { name: "X (Twitter)", url: "https://x.com/takt_min", label: "X" },
-  { name: "SoundCloud", url: "https://soundcloud.com/user-376655816", label: "SC" },
-  { name: "Instagram", url: "https://www.instagram.com/popkpia/", label: "IG" },
-  { name: "Niconico", url: "https://www.nicovideo.jp/user/141136171", label: "NC" },
-  { name: "TikTok", url: "https://www.tiktok.com/@popkpia", label: "TK" },
-  { name: "Contact", url: "mailto:Kpia0222@gmail.com", label: "MAIL" },
+  { name: "YouTube", url: "https://www.youtube.com/@popKpia", label: "Youtube" },
+  { name: "X (Twitter)", url: "https://x.com/takt_min", label: "X(Twitter)" },
+  { name: "SoundCloud", url: "https://soundcloud.com/user-376655816", label: "SoundCloud" },
+  { name: "Instagram", url: "https://www.instagram.com/popkpia/", label: "Instagram" },
+  { name: "Niconico", url: "https://www.nicovideo.jp/user/141136171", label: "NicoNico" },
+  { name: "TikTok", url: "https://www.tiktok.com/@popkpia", label: "TikTok" },
+  { name: "Contact", url: "mailto:Kpia0222@gmail.com", label: "Contact" },
 ];
 
 const LIVE_EVENTS = [
@@ -29,7 +29,7 @@ const LIVE_EVENTS = [
 ];
 
 const PROFILE_DATA = {
-  name: "KPIA_SYSTEM",
+  name: "Kpia",
   ver: "25.5.1 (Ref-Integrity)",
   bio: "整理、ハック、そして逸脱。\n秩序あるノイズを構築する。",
 };
@@ -53,8 +53,8 @@ interface EntityData {
   isMicrotonal?: boolean;
 }
 
-const GALAXY_DATA: EntityData[] = Array.from({ length: 30 }, (_, i) => {
-  const starId = `Kp.${String(i + 1).padStart(3, '0')}`;
+const GALAXY_DATA: EntityData[] = Array.from({ length: 50 }, (_, i) => {
+  const starId = `Kp.${String(i + 1).padStart(4, '0')}`;
   const starIndex = i + 1;
   const hasRemix = Math.random() > 0.5;
   const planets: EntityData[] = [];
@@ -290,6 +290,9 @@ export default function Home() {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [setlist, setSetlist] = useState<string[]>([]);
   const [currentMode, setCurrentMode] = useState<'UNIVERSE' | 'STAR' | 'PLANET' | 'SATELLITE' | 'DNA'>('DNA');
+  const [prevMode, setPrevMode] = useState<'UNIVERSE' | 'STAR' | 'PLANET' | 'SATELLITE'>('UNIVERSE');
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [prevFocusId, setPrevFocusId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isOverview, setIsOverview] = useState(false);
   const refMap = useRef(new Map<string, THREE.Object3D>());
@@ -328,11 +331,31 @@ export default function Home() {
     }
   };
 
+  const toggleDNAMode = () => {
+    // グリッチをONにする
+    setIsTransitioning(true);
+
+    if (currentMode !== 'DNA') {
+      setPrevMode(currentMode as any);
+      setPrevFocusId(focusId);
+      setCurrentMode('DNA');
+      setFocusId(null);
+    } else {
+      setCurrentMode(prevMode);
+      setFocusId(prevFocusId);
+    }
+
+    // 500ms（0.5秒）後にグリッチをオフにする
+    setTimeout(() => {
+      setIsTransitioning(false);
+    }, 500);
+  };
+
   useEffect(() => {
     setIsMounted(true);
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 't' || e.key === 'T') setShowTerminal(prev => !prev);
-      if (e.key === 'u' || e.key === 'U') { setCurrentMode(prev => prev === 'DNA' ? 'UNIVERSE' : 'DNA'); setFocusId(null); }
+      if (e.key === 'u' || e.key === 'U') toggleDNAMode();
       if (e.key === 'b' || e.key === 'B') { setIsOverview(prev => !prev); setFocusId(null); setCurrentMode('UNIVERSE'); }
       if (e.key === 'Escape') handleBack();
     };
@@ -348,7 +371,7 @@ export default function Home() {
     <KeyboardControls map={controlsMap}>
       <RefContext.Provider value={refMap}>
         <HoverContext.Provider value={{ hoveredId, setHoveredId }}>
-          <main className="h-screen w-full bg-black overflow-hidden relative font-mono text-white select-none">
+          <main className="h-screen w-full bg-black overflow-hidden relative font-mono text-white select-none ${isTransitioning ? 'shake' : ''}">
 
             <div className="absolute inset-0 z-0">
               <Canvas camera={{ position: [0, 60, 100], fov: 60 }}>
@@ -387,10 +410,11 @@ export default function Home() {
 
                   {/* 控えめなグリッチ：たまに走るノイズ */}
                   <Glitch
-                    delay={[1.5, 3.5]} // グリッチの間隔
-                    duration={[0.1, 0.3]} // 持続時間
-                    strength={[0.1, 0.2]} // 強さ（控えめに）
-                    mode={1} // CONSTANT_MILD
+                    active={isTransitioning} // 切り替え中だけ強制発動
+                    delay={new THREE.Vector2(0, 0)} // 遅延なし
+                    duration={new THREE.Vector2(0.3, 0.5)} // グリッチの長さ
+                    strength={new THREE.Vector2(0.1, 0.3)} // 普段より強めのノイズ
+                    mode={GlitchMode.SPORADIC} // 不規則に火花が散るようなモード
                   />
 
                   <Vignette darkness={1.1} offset={0.1} />
@@ -413,7 +437,12 @@ export default function Home() {
                   <div className="space-y-6 mb-12 text-xs text-gray-400">
                     {LIVE_EVENTS.map(evt => <div key={evt.id} className="border-b border-gray-800 pb-2"><div className="text-white font-bold mb-1">{evt.date}</div><div>{evt.title}</div><div>{evt.place}</div></div>)}
                   </div>
-                  <button onClick={handleBack} className="mt-auto px-10 py-3 bg-red-900/40 border border-red-500 text-white hover:bg-red-800 transition tracking-[0.2em] font-bold">ACTIVATE UNIVERSE [U]</button>
+                  <button
+                    onClick={toggleDNAMode} // handleBack から toggleDNAMode に変更
+                    className="mt-auto px-10 py-3 bg-red-900/40 border border-red-500 text-white hover:bg-red-800 transition tracking-[0.2em] font-bold"
+                  >
+                    RETURN TO SYSTEM [U]
+                  </button>
                 </div>
               </div>
             )}
@@ -494,33 +523,47 @@ export default function Home() {
 
        /* ノイズアニメーション */
        @keyframes noise-anim {
-       0 % { transform: translate(0, 0) }
-       10% {transform: translate(-5%,-5%) }
-       20% {transform: translate(-10%,5%) }
-       30% {transform: translate(5%,-10%) }
-       40% {transform: translate(-5%,15%) }
-       50% {transform: translate(-10%,5%) }
-       60% {transform: translate(15%,0) }
-       70% {transform: translate(0,10%) }
-       80% {transform: translate(-15%,0) }
-       90% {transform: translate(10%,5%) }
-       100% {transform: translate(5%,0) }
-       }
+         0 % { transform: translate(0, 0) }
+         10% {transform: translate(-5%,-5%) }
+         20% {transform: translate(-10%,5%) }
+         30% {transform: translate(5%,-10%) }
+         40% {transform: translate(-5%,15%) }
+         50% {transform: translate(-10%,5%) }
+         60% {transform: translate(15%,0) }
+         70% {transform: translate(0,10%) }
+         80% {transform: translate(-15%,0) }
+         90% {transform: translate(10%,5%) }
+         100% {transform: translate(5%,0) }
+        }
 
        /* 画面全体に薄くノイズの粒子を被せる */
        main::after {
-       content: "";
-       position: absolute;
-       top: -100%;
-       left: -100%;
-       width: 300%;
-       height: 300%;
-       background-image: url("https://grainy-gradients.vercel.app/noise.svg");
-       opacity: 0.04;
-       pointer-events: none;
-       z-index: 100;
-       animation: noise-anim 2s steps(10) infinite;
+         content: "";
+         position: absolute;
+         top: -100%;
+         left: -100%;
+         width: 300%;
+         height: 300%;
+         background-image: url("https://grainy-gradients.vercel.app/noise.svg");
+         opacity: 0.04;
+         pointer-events: none;
+         z-index: 100;
+         animation: noise-anim 2s steps(10) infinite;
+        }
+
+       /* style jsx global の中に追加 */
+       @keyframes screen-shake {
+         0% { transform: translafte(0,0) }
+         25% { transform: translate(2px, -2px) }
+         50% { transform: translate(-2px, 2px) }
+         75% { transform: translate(2px, 2px) }
+         100% { transform: translate(0,0) }
        }
+
+         .shake {
+           animation: screen-shake 0.2s infinite;
+         }
+
      `}</style>
     </KeyboardControls >
   );
