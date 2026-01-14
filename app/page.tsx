@@ -30,7 +30,7 @@ const LIVE_EVENTS = [
 
 const PROFILE_DATA = {
   name: "Kpia",
-  ver: "25.5.1 (Ref-Integrity)",
+  ver: "25.5.4 (Ref-Integrity)",
   bio: "整理、ハック、そして逸脱。\n秩序あるノイズを構築する。",
 };
 
@@ -392,7 +392,7 @@ export default function Home() {
 
                 <ExplorationCamera focusId={focusId} mode={currentMode} isOverview={isOverview} />
 
-                <EffectComposer disableNormalPass>
+                <EffectComposer>
                   {/* 強めの発光 */}
                   <Bloom intensity={1.5} luminanceThreshold={0.2} mipmapBlur />
 
@@ -412,7 +412,7 @@ export default function Home() {
                   <Glitch
                     active={isTransitioning} // 切り替え中だけ強制発動
                     delay={new THREE.Vector2(0, 0)} // 遅延なし
-                    duration={new THREE.Vector2(0.3, 0.5)} // グリッチの長さ
+                    duration={new THREE.Vector2(0.1, 0.3)} // グリッチの長さ
                     strength={new THREE.Vector2(0.1, 0.3)} // 普段より強めのノイズ
                     mode={GlitchMode.SPORADIC} // 不規則に火花が散るようなモード
                   />
