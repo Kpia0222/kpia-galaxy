@@ -7,9 +7,7 @@ import { EffectComposer, Bloom, Noise, Vignette, ChromaticAberration, Glitch, Sc
 import * as THREE from "three";
 import { BlendFunction, GlitchMode } from "postprocessing";
 
-// =====================================================================
-// 1. 定数・データ定義
-// =====================================================================
+// ... (PROFILE_DATA, SOCIAL_LINKS, LIVE_EVENTS, QUESTIONS 等は変更なし)
 
 const QUESTIONS = [
   "もし、音響物理が最初から微分音だったら？",
@@ -37,7 +35,7 @@ const LIVE_EVENTS = [
 
 const PROFILE_DATA = {
   name: "Kpia",
-  ver: "26.1.14 (Alien-Invasion)",
+  ver: "26.1.16 (Mobile-Adaptive)",
   bio: "整理、ハック、そして逸脱。\n秩序あるノイズを構築する。",
 };
 
@@ -111,9 +109,7 @@ const controlsMap = [
   { name: 'up', keys: ['Space'] }, { name: 'down', keys: ['Shift'] },
 ];
 
-// =====================================================================
-// 2. 3D Components
-// =====================================================================
+// ... (3Dコンポーネント: SpeculativeVoid, MicrotonalCrystals, LiquidMetalDNA, OrbitGroup, CelestialBody, StarObj, AlienComet, InputMeteor, DynamicConstellationLine, ExplorationCamera は変更なし)
 
 function SpeculativeVoid() {
   const points = useMemo(() => {
@@ -392,7 +388,10 @@ function ExplorationCamera({ focusId, mode, isOverview }: { focusId: string | nu
       const targetObj = refMap.current.get(focusId);
       targetObj!.getWorldPosition(worldPos.current);
       targetVec.current.copy(worldPos.current);
-      cameraVec.current.copy(worldPos.current).add(new THREE.Vector3(0, 8, 12));
+      let offsetDistance = 12;
+      if (mode === 'PLANET') offsetDistance = 6;
+      if (mode === 'SATELLITE') offsetDistance = 3;
+      cameraVec.current.copy(worldPos.current).add(new THREE.Vector3(0, offsetDistance * 0.6, offsetDistance));
     } else {
       const { forward, backward, left, right, up, down } = get();
       const speed = 60 * delta;
@@ -421,6 +420,7 @@ export default function Home() {
   const [isDisturbed, setIsDisturbed] = useState(false);
   const [impactId, setImpactId] = useState<string | null>(null);
   const [showTerminal, setShowTerminal] = useState(true);
+  const [activeMobileTab, setActiveMobileTab] = useState<'explorer' | 'analysis'>('explorer'); // スマホ用タブ
   const [focusId, setFocusId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [setlist, setSetlist] = useState<string[]>([]);
@@ -445,14 +445,20 @@ export default function Home() {
     const list: EntityData[] = [];
     GALAXY_DATA.forEach(star => {
       list.push(star);
-      star.children?.forEach(planet => { list.push(planet); planet.children?.forEach(sat => list.push(sat)); });
+      star.children?.forEach(planet => { 
+        list.push(planet); 
+        planet.children?.forEach(sat => list.push(sat)); 
+      });
     });
     return list;
   }, []);
 
   const searchResults = useMemo(() => {
     if (!searchQuery) return GALAXY_DATA;
-    return flattenedData.filter(d => d.label.toLowerCase().includes(searchQuery.toLowerCase()) || d.id.toLowerCase().includes(searchQuery.toLowerCase()));
+    return flattenedData.filter(d => 
+      d.label.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      d.id.toLowerCase().includes(searchQuery.toLowerCase())
+    );
   }, [searchQuery, flattenedData]);
 
   const targetEntity = useMemo(() => flattenedData.find(d => d.id === (focusId || hoveredId)), [focusId, hoveredId]);
@@ -464,10 +470,14 @@ export default function Home() {
       setIsTransitioning(true);
       setTimeout(() => setIsTransitioning(false), 800);
     }
-    setIsOverview(false); setFocusId(entity.id);
+    setIsOverview(false); 
+    setFocusId(entity.id);
     if (entity.type === 'star') setCurrentMode('STAR');
-    if (entity.type === 'planet') setCurrentMode('PLANET');
-    if (entity.type === 'satellite') setCurrentMode('SATELLITE');
+    else if (entity.type === 'planet') setCurrentMode('PLANET');
+    else if (entity.type === 'satellite') setCurrentMode('SATELLITE');
+    
+    // モバイルでターゲットを選んだら、自動的に分析タブに切り替える演出
+    if (window.innerWidth < 768) setActiveMobileTab('analysis');
   };
 
   const toggleDNAMode = () => {
@@ -507,25 +517,19 @@ export default function Home() {
                 <ambientLight intensity={0.5} />
                 <pointLight position={[0, 0, 0]} intensity={10} color="#ffaa00" distance={200} />
                 <Environment preset="city" />
-
                 <SpeculativeVoid />
                 <Sparkles count={3000} scale={200} size={2} speed={0.05} opacity={0.3} />
                 <Grid position={[0, -50, 0]} args={[500, 500]} cellColor="#111" sectionColor="#222" fadeDistance={300} />
-
                 <AlienComet data={{ speed: 0.15 }} onDisturb={setIsDisturbed} />
                 <InputMeteor targetId="Kp.0005" onImpact={handleMeteorImpact} />
-
                 <LiquidMetalDNA onClick={toggleDNAMode} erosion={targetEntity?.erosion} />
-
                 <group>
                   {GALAXY_DATA.map(star => (
                     <StarObj key={star.id} data={star} focusId={focusId} onSelect={(e) => handleNavigate(e.id)} />
                   ))}
                 </group>
-
                 <DynamicConstellationLine stars={setlist} color="#ffffff" />
                 <ExplorationCamera focusId={focusId} mode={currentMode} isOverview={isOverview} />
-
                 <EffectComposer>
                   <Bloom intensity={1.5} luminanceThreshold={0.2} />
                   <Scanline opacity={0.2} />
@@ -537,96 +541,132 @@ export default function Home() {
               </Canvas>
             </div>
 
-            {isDisturbed && (
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none z-50 text-center">
-                <div className="text-cyan-400 font-black text-2xl tracking-[1.5em] animate-pulse opacity-40 uppercase">
-                  Alien_Truth_Approaching
-                </div>
-                <div className="text-xs text-cyan-700 tracking-widest mt-4">SYSTEM_RESONANCE_DETECTED</div>
-              </div>
-            )}
-
+            {/* UI: DNA MODE (Responsive) */}
             {currentMode === 'DNA' && (
-              <div className="absolute inset-0 z-50 flex justify-between items-center p-12 md:p-24 animate-fade-in pointer-events-none">
-                <div className="w-full md:w-1/3 h-full flex flex-col justify-center bg-black/40 backdrop-blur-xl p-12 border-l-4 border-cyan-500 pointer-events-auto">
-                  <h2 className="text-6xl font-black mb-6 tracking-tighter text-white uppercase">{PROFILE_DATA.name}</h2>
-                  <p className="text-sm text-gray-400 whitespace-pre-line leading-relaxed mb-12 italic">{PROFILE_DATA.bio}</p>
-                  <div className="flex flex-wrap gap-4 mt-auto">
-                    {SOCIAL_LINKS.map(sns => <a key={sns.name} href={sns.url} target="_blank" rel="noopener noreferrer" className="text-[10px] border border-gray-700 px-5 py-2 hover:bg-cyan-500 hover:text-black transition-all uppercase tracking-widest">{sns.label}</a>)}
+              <div className="absolute inset-0 z-50 flex flex-col md:flex-row justify-between items-center p-6 md:p-24 animate-fade-in pointer-events-none">
+                <div className="w-full md:w-1/3 h-auto md:h-full flex flex-col justify-center bg-black/40 backdrop-blur-xl p-8 md:p-12 border-l-4 border-cyan-500 pointer-events-auto shadow-2xl">
+                  <h2 className="text-4xl md:text-6xl font-black mb-4 md:mb-6 tracking-tighter text-white uppercase leading-none">{PROFILE_DATA.name}</h2>
+                  <p className="text-xs md:text-sm text-gray-400 whitespace-pre-line leading-relaxed mb-6 md:mb-12 italic border-l border-gray-700 pl-4">{PROFILE_DATA.bio}</p>
+                  <div className="flex flex-wrap gap-2 md:gap-4 mt-auto">
+                    {SOCIAL_LINKS.map(sns => <a key={sns.name} href={sns.url} target="_blank" rel="noopener noreferrer" className="text-[9px] border border-gray-700 px-3 py-1.5 md:px-5 md:py-2 hover:bg-cyan-500 hover:text-black transition-all uppercase tracking-widest font-bold">{sns.label}</a>)}
                   </div>
                 </div>
-                <div className="hidden md:flex w-1/3 h-full flex flex-col justify-center bg-black/40 backdrop-blur-xl p-12 border-r-4 border-cyan-500 text-right pointer-events-auto">
-                  <h3 className="text-2xl font-black mb-10 text-cyan-400 tracking-widest">UPCOMING_FREQ</h3>
+                <div className="hidden md:flex w-1/3 h-full flex flex-col justify-center bg-black/40 backdrop-blur-xl p-12 border-r-4 border-cyan-500 text-right pointer-events-auto shadow-2xl">
+                  <h3 className="text-2xl font-black mb-10 text-cyan-400 tracking-widest uppercase">Upcoming_Freq</h3>
                   <div className="space-y-8 mb-16 text-xs text-gray-500">
-                    {LIVE_EVENTS.map(evt => <div key={evt.id} className="border-b border-gray-800 pb-3"><div className="text-white font-bold mb-1">{evt.date}</div><div>{evt.title}</div><div>{evt.place}</div></div>)}
+                    {LIVE_EVENTS.map(evt => <div key={evt.id} className="border-b border-gray-800 pb-3"><div className="text-white font-bold mb-1 tracking-wider">{evt.date}</div><div className="text-gray-300 font-medium">{evt.title}</div><div className="text-[10px] text-gray-600">{evt.place}</div></div>)}
                   </div>
-                  <button onClick={toggleDNAMode} className="mt-auto px-12 py-4 bg-red-950/30 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white transition tracking-[0.3em] font-black uppercase text-xs">REBOOT_SYSTEM [U]</button>
+                  <button onClick={toggleDNAMode} className="mt-auto px-12 py-4 bg-red-950/30 border border-red-600 text-red-500 hover:bg-red-600 hover:text-white transition-all tracking-[0.3em] font-black uppercase text-xs">Reboot_System [U]</button>
                 </div>
+                {/* モバイル用リブートボタン */}
+                <button onClick={toggleDNAMode} className="md:hidden mt-6 w-full py-4 bg-red-950/30 border border-red-600 text-red-500 pointer-events-auto font-black text-[10px] tracking-widest uppercase uppercase">Return to System</button>
               </div>
             )}
 
+            {/* UI: TERMINALS (Responsive) */}
             {showTerminal && currentMode !== 'DNA' && (
               <>
-                <div className="absolute top-10 left-8 bottom-36 w-80 bg-black/80 border border-cyan-900/40 backdrop-blur-xl flex flex-col animate-slide-right z-30 pointer-events-auto">
-                  <div className="p-5 border-b border-gray-800 bg-gray-900/40 text-cyan-500 text-[10px] font-black tracking-[0.3em] uppercase">Archive_Explorer</div>
-                  <div className="p-4"><input type="text" placeholder="QUERY_ENTITY..." className="w-full bg-black/50 border border-gray-800 p-3 text-[10px] text-cyan-400 outline-none focus:border-cyan-500 transition" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
+                {/* スマホ用タブ切り替えヘッダー */}
+                <div className="md:hidden absolute top-0 left-0 w-full flex bg-black/80 backdrop-blur-md border-b border-gray-800 z-40">
+                  <button onClick={() => setActiveMobileTab('explorer')} className={`flex-1 py-4 text-[10px] font-black tracking-widest uppercase transition ${activeMobileTab === 'explorer' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-900/10' : 'text-gray-500'}`}>Map</button>
+                  <button onClick={() => setActiveMobileTab('analysis')} className={`flex-1 py-4 text-[10px] font-black tracking-widest uppercase transition ${activeMobileTab === 'analysis' ? 'text-cyan-400 border-b-2 border-cyan-400 bg-cyan-900/10' : 'text-gray-500'}`}>Log</button>
+                </div>
+
+                {/* Explorer Terminal */}
+                <div className={`
+                  absolute z-30 pointer-events-auto flex flex-col transition-all duration-500
+                  md:top-10 md:left-8 md:bottom-36 md:w-80 md:bg-black/80 md:border md:border-cyan-900/40 md:backdrop-blur-xl md:animate-slide-right
+                  top-14 left-0 w-full bottom-32 bg-black/60 backdrop-blur-lg
+                  ${(activeMobileTab !== 'explorer' && window.innerWidth < 768) ? 'opacity-0 pointer-events-none translate-x-[-10px]' : 'opacity-100'}
+                `}>
+                  <div className="p-5 border-b border-gray-800 bg-gray-900/40 text-cyan-500 text-[10px] font-black tracking-[0.3em] uppercase hidden md:block">Archive_Explorer</div>
+                  <div className="p-4 border-b border-gray-900/20"><input type="text" placeholder="QUERY_ENTITY..." className="w-full bg-black/50 border border-gray-800 p-3 text-[10px] text-cyan-400 outline-none focus:border-cyan-500 transition-all font-bold" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} /></div>
                   <div className="flex-1 overflow-y-auto p-4 custom-scrollbar text-[10px]">
-                    <ul className="space-y-3">
+                    <ul className="space-y-4">
                       {searchResults.map((entity) => (
                         <li key={entity.id} className="group">
-                          <div className="flex items-center">
-                            <span className={`w-1.5 h-1.5 rounded-full mr-3 ${entity.erosion! > 0.5 ? 'bg-red-500 animate-pulse' : 'bg-cyan-500'}`}></span>
-                            <button onClick={() => handleNavigate(entity.id)} className={`flex-1 text-left py-1 truncate transition ${focusId === entity.id ? 'text-cyan-400 font-black scale-105 origin-left' : 'text-gray-400 hover:text-white'}`}>{entity.label}</button>
-                            {entity.type === 'star' && <button onClick={() => setSetlist(p => [...p, entity.id])} className="px-2 text-gray-600 hover:text-cyan-400 border border-gray-800 opacity-0 group-hover:opacity-100 transition">+</button>}
+                          <div className="flex items-center p-1">
+                            <span className={`w-2 h-2 rounded-full mr-3 ${entity.erosion! > 0.5 ? 'bg-red-500 animate-pulse' : 'bg-cyan-500 shadow-cyan'}`}></span>
+                            <button onClick={() => handleNavigate(entity.id)} className={`flex-1 text-left py-2 truncate transition-all duration-300 ${focusId === entity.id ? 'text-cyan-400 font-black scale-105 origin-left' : 'text-gray-400 hover:text-white'}`}>{entity.label}</button>
                           </div>
+                          {!searchQuery && entity.children?.map(child => (
+                            <div key={child.id} className="pl-6 border-l border-gray-800/50 ml-2 mt-1.5 space-y-2">
+                              <button onClick={() => handleNavigate(child.id)} className={`block w-full text-left py-1 text-[10px] truncate transition-all ${focusId === child.id ? 'text-yellow-400 font-bold' : 'text-gray-500'}`}>↳ {child.label}</button>
+                              {child.children?.map(sat => (
+                                <button key={sat.id} onClick={() => handleNavigate(sat.id)} className={`block w-full text-left py-1 pl-4 text-[9px] truncate transition-all ${focusId === sat.id ? 'text-pink-400 font-bold' : 'text-gray-600'}`}>↳ {sat.label}</button>
+                              ))}
+                            </div>
+                          ))}
                         </li>
                       ))}
                     </ul>
                   </div>
                 </div>
 
-                <div className="absolute top-10 right-8 bottom-36 w-80 bg-black/80 border border-cyan-900/40 backdrop-blur-xl flex flex-col animate-slide-left z-30 pointer-events-auto">
-                  <div className="p-5 border-b border-gray-800 bg-gray-900/40 text-cyan-500 text-[10px] font-black tracking-[0.3em] uppercase">Scanner_Analysis</div>
+                {/* Analysis Terminal */}
+                <div className={`
+                  absolute z-30 pointer-events-auto flex flex-col transition-all duration-500 shadow-inner
+                  md:top-10 md:right-8 md:bottom-36 md:w-80 md:bg-black/80 md:border md:border-cyan-900/40 md:backdrop-blur-xl md:animate-slide-left
+                  top-14 right-0 w-full bottom-32 bg-black/60 backdrop-blur-lg
+                  ${(activeMobileTab !== 'analysis' && window.innerWidth < 768) ? 'opacity-0 pointer-events-none translate-x-[10px]' : 'opacity-100'}
+                `}>
+                  <div className="p-5 border-b border-gray-800 bg-gray-900/40 text-cyan-500 text-[10px] font-black tracking-[0.3em] uppercase hidden md:block">Scanner_Analysis</div>
                   {targetEntity ? (
-                    <div className="p-8 space-y-8 animate-fade-in overflow-y-auto custom-scrollbar">
-                      <h2 className="text-3xl font-black text-white tracking-tighter leading-none border-b border-gray-800 pb-4">{targetEntity.label}</h2>
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-1"><span className="text-[8px] text-gray-600 block uppercase font-black">Category</span><span className="text-[10px] text-white font-bold">{targetEntity.category || "---"}</span></div>
-                        <div className="space-y-1"><span className="text-[8px] text-gray-600 block uppercase font-black">Erosion_Lv</span><span className={`text-[10px] font-black ${targetEntity.erosion! > 0.5 ? 'text-red-500' : 'text-cyan-400'}`}>{(targetEntity.erosion! * 100).toFixed(1)}%</span></div>
-                        <div className="space-y-1"><span className="text-[8px] text-gray-600 block uppercase font-black">Signal_Type</span><span className="text-[10px] text-white">{targetEntity.isForeign ? "ALIEN" : "ORGANIC"}</span></div>
-                        <div className="space-y-1"><span className="text-[8px] text-gray-600 block uppercase font-black">Access_Log</span><span className="text-[10px] text-white">{targetEntity.clicks}</span></div>
+                    <div className="p-6 md:p-8 space-y-6 md:space-y-8 animate-fade-in overflow-y-auto custom-scrollbar">
+                      <div className="space-y-1">
+                        <span className="text-[8px] text-cyan-900 block font-black uppercase tracking-[0.2em]">Current_Target</span>
+                        <h2 className="text-2xl md:text-3xl font-black text-white tracking-tighter leading-tight border-b border-gray-800 pb-4 shadow-glow">{targetEntity.label}</h2>
                       </div>
-                      <div className="w-full h-1 bg-gray-900 rounded-full overflow-hidden">
-                        <div className="h-full bg-cyan-500 transition-all duration-1000" style={{ width: `${(targetEntity.erosion || 0) * 100}%` }}></div>
+                      <div className="grid grid-cols-2 gap-4 md:gap-6">
+                        <div className="space-y-1"><span className="text-[7px] md:text-[8px] text-gray-600 block uppercase font-black tracking-widest">Type</span><span className="text-[10px] text-white font-bold uppercase">{targetEntity.type}</span></div>
+                        <div className="space-y-1"><span className="text-[7px] md:text-[8px] text-gray-600 block uppercase font-black tracking-widest">Erosion</span><span className={`text-[10px] font-black ${targetEntity.erosion! > 0.5 ? 'text-red-500 animate-pulse' : 'text-cyan-400'}`}>{(targetEntity.erosion! * 100).toFixed(1)}%</span></div>
                       </div>
-                      {targetEntity.youtubeId && <div className="aspect-video bg-black border border-gray-800 mt-6 shadow-2xl"><iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${targetEntity.youtubeId}`} frameBorder="0" allowFullScreen /></div>}
+                      <div className="space-y-2">
+                        <div className="w-full h-1 bg-gray-900 rounded-full overflow-hidden">
+                          <div className="h-full bg-cyan-500 transition-all duration-1000 shadow-cyan" style={{ width: `${(targetEntity.erosion || 0) * 100}%` }}></div>
+                        </div>
+                      </div>
+                      {targetEntity.youtubeId && <div className="aspect-video bg-black border border-gray-800 mt-4 shadow-2xl overflow-hidden rounded-sm"><iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${targetEntity.youtubeId}`} frameBorder="0" allowFullScreen /></div>}
                     </div>
-                  ) : <div className="flex-1 flex items-center justify-center text-[10px] text-gray-700 tracking-[0.4em] text-center p-12">AWAITING_SIGNAL...<br />SELECT_NODE_IN_UNIVERSE</div>}
+                  ) : <div className="flex-1 flex items-center justify-center text-[10px] text-gray-700 tracking-[0.4em] text-center p-12 leading-loose">AWAITING_SIGNAL...<br />SELECT_NODE_IN_UNIVERSE</div>}
                 </div>
 
-                <div className="absolute bottom-8 left-0 w-full flex justify-center z-30 pointer-events-none">
-                  <div className="bg-black/90 border border-cyan-900/30 px-10 py-5 flex gap-10 items-center backdrop-blur-2xl rounded-full shadow-2xl pointer-events-auto">
-                    <button onClick={() => setShowTerminal(false)} className="text-[9px] font-black tracking-widest text-cyan-600 hover:text-white transition uppercase">HUD_OFF [T]</button>
-                    <div className="h-4 w-px bg-gray-800"></div>
-                    <button onClick={() => { setFocusId(null); setCurrentMode('UNIVERSE'); }} className="text-[10px] font-black tracking-[0.2em] text-white hover:text-cyan-400 transition uppercase">Unfocus [ESC]</button>
-                    <div className="h-4 w-px bg-gray-800"></div>
-                    <button onClick={() => setSetlist([])} className="text-[9px] font-black text-red-600 hover:text-red-400 transition uppercase">Clear_Line</button>
+                {/* Bottom Control Bar (Responsive) */}
+                <div className="absolute bottom-6 md:bottom-8 left-0 w-full flex justify-center z-30 pointer-events-none px-4">
+                  <div className="bg-black/90 border border-cyan-900/30 px-6 md:px-10 py-4 md:py-5 flex gap-4 md:gap-10 items-center backdrop-blur-2xl rounded-full shadow-2xl pointer-events-auto border-t border-cyan-500/20">
+                    <button onClick={() => setShowTerminal(false)} className="text-[8px] md:text-[9px] font-black tracking-widest text-cyan-600 hover:text-white transition-all uppercase">Hud:Off</button>
+                    <div className="h-4 w-px bg-gray-800/50"></div>
+                    <button onClick={() => { setFocusId(null); setCurrentMode('UNIVERSE'); }} className="text-[9px] md:text-[10px] font-black tracking-[0.2em] text-white hover:text-cyan-400 transition-all uppercase px-3 md:px-4 py-1">Unfocus</button>
+                    <div className="h-4 w-px bg-gray-800/50"></div>
+                    <button onClick={() => setSetlist([])} className="text-[8px] md:text-[9px] font-black text-red-600 hover:text-red-400 transition-all uppercase">Clear</button>
                   </div>
                 </div>
               </>
             )}
 
-            <div className="absolute bottom-6 right-8 z-50 text-[9px] text-gray-700 tracking-[0.5em] font-black uppercase pointer-events-none">{PROFILE_DATA.ver}</div>
+            {/* HUDがOFFの時の再起動ボタン */}
+            {!showTerminal && currentMode !== 'DNA' && (
+              <button onClick={() => setShowTerminal(true)} className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50 bg-cyan-500/20 border border-cyan-500 text-cyan-400 px-8 py-3 rounded-full text-[10px] font-black tracking-widest uppercase backdrop-blur-md">Initialize HUD</button>
+            )}
+
+            <div className="absolute bottom-6 right-8 z-50 text-[9px] text-gray-700 tracking-[0.5em] font-black uppercase pointer-events-none opacity-50 hidden md:block">{PROFILE_DATA.ver}</div>
           </main>
         </HoverContext.Provider>
       </RefContext.Provider>
+      
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar { width: 2px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #222; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        
         @keyframes slide-right { from { transform: translateX(-40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes slide-left { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         
+        .shadow-glow { text-shadow: 0 0 10px rgba(255, 255, 255, 0.3), 0 0 20px rgba(0, 255, 255, 0.2); }
+        .shadow-cyan { box-shadow: 0 0 10px rgba(0, 255, 255, 0.3); }
+        .text-shadow-glow { text-shadow: 0 0 20px rgba(0, 255, 255, 0.6); }
+
         main::after {
           content: ""; position: absolute; top: -100%; left: -100%; width: 300%; height: 300%;
           background-image: url("https://grainy-gradients.vercel.app/noise.svg");
@@ -643,6 +683,14 @@ export default function Home() {
           0%, 100% { transform: translate(0,0) rotate(0); }
           33% { transform: translate(3px, -3px) rotate(1deg); }
           66% { transform: translate(-3px, 3px) rotate(-1deg); }
+        }
+
+        /* モバイル対応：YouTubeの比率調整 */
+        @media (max-width: 768px) {
+          iframe {
+            height: 100%;
+            width: 100%;
+          }
         }
       `}</style>
     </KeyboardControls>
