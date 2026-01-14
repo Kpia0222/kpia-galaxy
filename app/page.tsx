@@ -30,7 +30,7 @@ const LIVE_EVENTS = [
 
 const PROFILE_DATA = {
   name: "Kpia",
-  ver: "25.5.4 (Ref-Integrity)",
+  ver: "25.5.9 (Ref-Integrity)",
   bio: "整理、ハック、そして逸脱。\n秩序あるノイズを構築する。",
 };
 
