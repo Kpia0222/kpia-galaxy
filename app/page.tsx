@@ -13,6 +13,10 @@ import GravityQuake from "./components/GravityQuake";
 import DeepSpaceNebula from "./components/DeepSpaceNebula";
 import PickParticleStream from "./components/PickParticleStream";
 import GalaxySelectionUI from "./components/GalaxySelectionUI";
+import MicrotonalCrystalsInstanced from "./components/instanced/MicrotonalCrystalsInstanced";
+import StarInstancedGroup from "./components/instanced/StarInstancedGroup";
+import { OPTIMIZATION_FLAGS } from "./config/optimizationFlags";
+import { groupEntitiesByGeometry } from "./utils/entityGrouping";
 
 // =====================================================================
 // 1. 定数・データ定義
@@ -302,7 +306,25 @@ const controlsMap = [
 // =====================================================================
 
 function MicrotonalCrystals({ amount, color }: { amount: number, color: string }) {
-  const count = Math.floor(amount * 16); 
+  // Use instanced version if optimization flag is enabled
+  if (OPTIMIZATION_FLAGS.ENABLE_INSTANCED_CRYSTALS) {
+    return (
+      <>
+        <MicrotonalCrystalsInstanced amount={amount} color={color} baseScale={1.5} speed={2.0} />
+        {amount > 0.8 && (
+          <mesh>
+            <sphereGeometry args={[1.5, 32, 32]} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.05} side={THREE.BackSide} blending={THREE.AdditiveBlending} />
+            <Sparkles count={20} scale={3} size={4} speed={0.4} opacity={0.5} color="#00ffff" />
+            <Sparkles count={20} scale={3.5} size={4} speed={-0.4} opacity={0.5} color="#ff00ff" />
+          </mesh>
+        )}
+      </>
+    );
+  }
+
+  // Original implementation (fallback)
+  const count = Math.floor(amount * 16);
   const crystals = useMemo(() => Array.from({ length: count }).map(() => ({
     pos: [Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5].map(v => v * 1.8) as [number, number, number],
     rot: [Math.random() * Math.PI, Math.random() * Math.PI, 0] as [number, number, number],
@@ -317,8 +339,8 @@ function MicrotonalCrystals({ amount, color }: { amount: number, color: string }
     ref.current.children.forEach((child, i) => {
       const cData = crystals[i];
       if (!cData) return;
-      const pulse = amount >= 0.95 
-        ? Math.sin(t * cData.speed * 2) * 0.5 + 1.2 
+      const pulse = amount >= 0.95
+        ? Math.sin(t * cData.speed * 2) * 0.5 + 1.2
         : Math.sin(t * cData.speed) * 0.2 + 1.0;
       child.scale.setScalar(cData.baseScale * pulse);
       child.rotation.x += 0.01; child.rotation.y += 0.02;
@@ -638,6 +660,47 @@ function StarObj({ data, offset, focusId, onSelect }: { data: EntityData, offset
         </OrbitGroup>
       ))}
     </OrbitGroup>
+  );
+}
+
+// Instanced star renderer - groups stars by geometry type for optimal performance
+function InstancedStarRenderer({
+  stars,
+  offset,
+  focusId,
+  hoveredId,
+  onSelect,
+  onHover
+}: {
+  stars: EntityData[],
+  offset: [number, number, number],
+  focusId: string | null,
+  hoveredId: string | null,
+  onSelect: (id: string) => void,
+  onHover: (id: string | null) => void
+}) {
+  // Group stars by geometry type
+  const groupedStars = useMemo(() => groupEntitiesByGeometry(stars), [stars]);
+
+  if (OPTIMIZATION_FLAGS.DEBUG_PERFORMANCE) {
+    console.log(`[InstancedStarRenderer] Grouped ${stars.length} stars into ${Object.keys(groupedStars).length} geometry types`);
+  }
+
+  return (
+    <>
+      {Object.entries(groupedStars).map(([geometryType, entities]) => (
+        <StarInstancedGroup
+          key={`${geometryType}-${offset.join('-')}`}
+          entities={entities}
+          geometryType={geometryType}
+          offset={offset}
+          focusId={focusId}
+          hoveredId={hoveredId}
+          onSelect={onSelect}
+          onHover={onHover}
+        />
+      ))}
+    </>
   );
 }
 
@@ -1148,14 +1211,36 @@ export default function Home() {
                   <Grid position={[1000, -50, 0]} args={[500, 500]} cellColor="#00ffff" sectionColor="#008888" fadeDistance={300} />
 
                   <LiquidMetalDNA onClick={toggleDNAMode} erosion={targetEntity?.erosion} />
-                  
-                  {/* Galaxy 1 */}
-                  <group>{galaxyData.map(star => <StarObj key={star.id} data={star} offset={[0,0,0]} focusId={focusId} onSelect={handleNavigate} />)}</group>
-                  
+
+                  {/* Galaxy 1 - Original Universe */}
+                  {OPTIMIZATION_FLAGS.ENABLE_INSTANCED_STARS ? (
+                    <InstancedStarRenderer
+                      stars={galaxyData}
+                      offset={[0, 0, 0]}
+                      focusId={focusId}
+                      hoveredId={hoveredId}
+                      onSelect={handleNavigate}
+                      onHover={setHoveredId}
+                    />
+                  ) : (
+                    <group>{galaxyData.map(star => <StarObj key={star.id} data={star} offset={[0,0,0]} focusId={focusId} onSelect={handleNavigate} />)}</group>
+                  )}
+
                   {/* Galaxy 2 (Microtonal) */}
                   <group position={[2000, 0, 0]}>
                     <DNACore position={[0, 0, 0]} erosion={globalErosion} isMultiverseView={activeCamSlot === 3} />
-                    {microGalaxyData.map(star => <StarObj key={star.id} data={star} offset={[0,0,0]} focusId={focusId} onSelect={handleNavigate} />)}
+                    {OPTIMIZATION_FLAGS.ENABLE_INSTANCED_STARS ? (
+                      <InstancedStarRenderer
+                        stars={microGalaxyData}
+                        offset={[2000, 0, 0]}
+                        focusId={focusId}
+                        hoveredId={hoveredId}
+                        onSelect={handleNavigate}
+                        onHover={setHoveredId}
+                      />
+                    ) : (
+                      microGalaxyData.map(star => <StarObj key={star.id} data={star} offset={[0,0,0]} focusId={focusId} onSelect={handleNavigate} />)
+                    )}
                   </group>
 
                   <group>{SHARD_DATA.map(shard => <QuestionShard key={shard.id} data={shard} onSelect={handleNavigate} />)}</group>
