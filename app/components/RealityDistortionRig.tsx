@@ -307,7 +307,7 @@ export default function RealityDistortionRig({
                 value={erosion}
                 onChange={handleFaderChange}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-ns-resize"
-                style={{ writingMode: 'bt-lr', WebkitAppearance: 'slider-vertical' }}
+                style={{ writingMode: 'bt-lr' as React.CSSProperties['writingMode'], WebkitAppearance: 'slider-vertical' as any }}
               />
 
               {/* Visual thumb */}
