@@ -115,8 +115,9 @@ const FPVCamera = forwardRef<FPVCameraHandle, FPVCameraProps>(
 
     // Main update loop
     useFrame((state, delta) => {
-      const speed = 200 * delta;
-      const damping = 0.9;
+      // Tuned for comfortable space exploration
+      const speed = 300 * delta; // Increased from 200 for faster movement
+      const damping = 0.92; // Slightly increased from 0.9 for smoother deceleration
 
       // Movement input (only when pointer is locked or keyboard control)
       if (isLockedRef.current || keysPressed.current.size > 0) {
@@ -218,6 +219,7 @@ const FPVCamera = forwardRef<FPVCameraHandle, FPVCameraProps>(
           ref={controlsRef}
           selector="#canvas-wrapper"
           makeDefault
+          pointerSpeed={0.5}
         />
       </>
     );
