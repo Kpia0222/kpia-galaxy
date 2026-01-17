@@ -368,17 +368,36 @@ function MicrotonalCrystals({ amount, color }: { amount: number, color: string }
 }
 
 function GravitationalDistortion({ position }: { position: THREE.Vector3 }) {
+  const groupRef = useRef<THREE.Group>(null);
+  const [visible, setVisible] = useState(true);
+
+  useFrame(({ camera }) => {
+    if (!groupRef.current) return;
+
+    // Get world position of this effect
+    const worldPos = new THREE.Vector3();
+    groupRef.current.getWorldPosition(worldPos);
+
+    // Calculate distance to camera
+    const distance = camera.position.distanceTo(worldPos);
+
+    // Only show effect when camera is within 50 units
+    setVisible(distance < 50);
+  });
+
+  if (!visible) return null;
+
   return (
-    <group position={position}>
+    <group ref={groupRef} position={position}>
       <mesh rotation={[Math.PI/2, 0, 0]}>
         <ringGeometry args={[2, 6, 32]} />
-        <meshBasicMaterial 
-          color="#000" 
-          transparent 
-          opacity={0.3} 
-          side={THREE.DoubleSide} 
-          blending={THREE.SubtractiveBlending} 
-          premultipliedAlpha={true} 
+        <meshBasicMaterial
+          color="#000"
+          transparent
+          opacity={0.3}
+          side={THREE.DoubleSide}
+          blending={THREE.SubtractiveBlending}
+          premultipliedAlpha={true}
         />
       </mesh>
       <mesh rotation={[Math.PI/2, 0, 0]}>
@@ -587,7 +606,15 @@ function OrbitGroup({ data, offset, children }: { data: EntityData, offset: [num
     <group position={offset}>
       <group rotation={[data.inclination[0], 0, data.inclination[2]]}>
         <group ref={groupRef}><group position={[data.distance, 0, 0]}>{children}</group></group>
-        <Torus args={[data.distance, 0.01, 8, 120]} rotation={[Math.PI / 2, 0, 0]}><meshBasicMaterial color={data.color} transparent opacity={0.15} /></Torus>
+        {/* Orbit visualization - increased opacity and added emissive for better visibility */}
+        <Torus args={[data.distance, 0.01, 8, 120]} rotation={[Math.PI / 2, 0, 0]}>
+          <meshBasicMaterial
+            color={data.color}
+            transparent
+            opacity={0.3}
+            blending={THREE.AdditiveBlending}
+          />
+        </Torus>
       </group>
     </group>
   );

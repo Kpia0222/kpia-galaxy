@@ -5,8 +5,9 @@
 
 export const OPTIMIZATION_FLAGS = {
   // Phase 1: Instancing
-  ENABLE_INSTANCED_STARS: true,
-  ENABLE_INSTANCED_CRYSTALS: true,
+  // TEMPORARILY DISABLED: Instancing breaks hierarchical rendering (planets/satellites disappear)
+  ENABLE_INSTANCED_STARS: false, // TODO: Fix to render children recursively
+  ENABLE_INSTANCED_CRYSTALS: true, // This works correctly
   ENABLE_INSTANCED_METEORS: false, // Not yet implemented
 
   // Phase 2: LOD System
