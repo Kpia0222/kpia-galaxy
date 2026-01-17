@@ -13,7 +13,7 @@ interface DNACoreProps {
 
 export default function DNACore({ position, erosion = 0, isMultiverseView = false }: DNACoreProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const pointsRef = useRef<THREE.Points[]>([]);
+  const pointsRef = useRef<any[]>([]);
 
   // DNA parameters
   const helixHeight = 50;
