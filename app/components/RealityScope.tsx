@@ -256,56 +256,40 @@ export default function RealityScope({ erosion, audioData }: RealityScopeProps) 
 
   // Create line segments for grid
   const gridLines = useMemo(() => {
-    const lines: JSX.Element[] = [];
+    const lines: THREE.Line[] = [];
 
     // Frequency grid lines (vertical)
     for (let i = 0; i <= 8; i++) {
       const x = (i / 8) * 2 - 1;
-      const points = [
-        new THREE.Vector3(x, 0, 0),
-        new THREE.Vector3(x, 0, -1)
-      ];
-      lines.push(
-        <line key={`freq-${i}`}>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              count={2}
-              array={new Float32Array([
-                points[0].x, points[0].y, points[0].z,
-                points[1].x, points[1].y, points[1].z
-              ])}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <lineBasicMaterial color="#222" transparent opacity={0.2} />
-        </line>
-      );
+      const lineGeometry = new THREE.BufferGeometry();
+      lineGeometry.setAttribute('position', new THREE.BufferAttribute(
+        new Float32Array([x, 0, 0, x, 0, -1]),
+        3
+      ));
+      const lineMaterial = new THREE.LineBasicMaterial({
+        color: "#222",
+        transparent: true,
+        opacity: 0.2
+      });
+      const line = new THREE.Line(lineGeometry, lineMaterial);
+      lines.push(line);
     }
 
     // Time grid lines (horizontal)
     for (let i = 0; i <= 8; i++) {
       const z = -i / 8;
-      const points = [
-        new THREE.Vector3(-1, 0, z),
-        new THREE.Vector3(1, 0, z)
-      ];
-      lines.push(
-        <line key={`time-${i}`}>
-          <bufferGeometry>
-            <bufferAttribute
-              attach="attributes-position"
-              count={2}
-              array={new Float32Array([
-                points[0].x, points[0].y, points[0].z,
-                points[1].x, points[1].y, points[1].z
-              ])}
-              itemSize={3}
-            />
-          </bufferGeometry>
-          <lineBasicMaterial color="#222" transparent opacity={0.2} />
-        </line>
-      );
+      const lineGeometry = new THREE.BufferGeometry();
+      lineGeometry.setAttribute('position', new THREE.BufferAttribute(
+        new Float32Array([-1, 0, z, 1, 0, z]),
+        3
+      ));
+      const lineMaterial = new THREE.LineBasicMaterial({
+        color: "#222",
+        transparent: true,
+        opacity: 0.2
+      });
+      const line = new THREE.Line(lineGeometry, lineMaterial);
+      lines.push(line);
     }
 
     return lines;
@@ -314,7 +298,9 @@ export default function RealityScope({ erosion, audioData }: RealityScopeProps) 
   return (
     <group>
       {/* Background grid */}
-      {gridLines}
+      {gridLines.map((line, i) => (
+        <primitive key={`grid-line-${i}`} object={line} />
+      ))}
 
       {/* Main spectrum points */}
       <points ref={pointsRef} geometry={geometry}>

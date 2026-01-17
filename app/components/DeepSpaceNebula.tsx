@@ -14,7 +14,8 @@ export default function DeepSpaceNebula({ count = 5000, radius = 2000, erosion =
   const pointsRef = useRef<THREE.Points>(null);
 
   // Generate nebula positions with Perlin-like clustering
-  const { positions, colors } = useMemo(() => {
+  const geometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry();
     const posArray = new Float32Array(count * 3);
     const colArray = new Float32Array(count * 3);
 
@@ -42,7 +43,10 @@ export default function DeepSpaceNebula({ count = 5000, radius = 2000, erosion =
       colArray[i3 + 2] = 0.8 + colorMix * 0.2; // B
     }
 
-    return { positions: posArray, colors: colArray };
+    geo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colArray, 3));
+
+    return geo;
   }, [count, radius]);
 
   // Gentle rotation and pulsation
@@ -58,21 +62,7 @@ export default function DeepSpaceNebula({ count = 5000, radius = 2000, erosion =
   });
 
   return (
-    <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={count}
-          array={positions}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          count={count}
-          array={colors}
-          itemSize={3}
-        />
-      </bufferGeometry>
+    <points ref={pointsRef} geometry={geometry}>
       <pointsMaterial
         size={2}
         vertexColors

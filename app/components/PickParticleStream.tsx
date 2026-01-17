@@ -17,7 +17,8 @@ export default function PickParticleStream({ startPos, endPos, color, onComplete
   const particleCount = 50;
 
   // Generate particles along the path
-  const { positions, velocities } = React.useMemo(() => {
+  const { geometry, velocities } = React.useMemo(() => {
+    const geo = new THREE.BufferGeometry();
     const posArray = new Float32Array(particleCount * 3);
     const velArray = new Float32Array(particleCount * 3);
 
@@ -40,8 +41,10 @@ export default function PickParticleStream({ startPos, endPos, color, onComplete
       velArray[i3 + 2] = direction.z;
     }
 
-    return { positions: posArray, velocities: velArray };
-  }, [startPos, endPos]);
+    geo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+
+    return { geometry: geo, velocities: velArray };
+  }, [startPos, endPos, particleCount]);
 
   useFrame((state, delta) => {
     if (!pointsRef.current) return;
@@ -79,15 +82,7 @@ export default function PickParticleStream({ startPos, endPos, color, onComplete
   });
 
   return (
-    <points ref={pointsRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          count={particleCount}
-          array={positions}
-          itemSize={3}
-        />
-      </bufferGeometry>
+    <points ref={pointsRef} geometry={geometry}>
       <pointsMaterial
         size={1.5}
         color={color}

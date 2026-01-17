@@ -48,7 +48,8 @@ export default function DNACore({ position, erosion = 0, isMultiverseView = fals
   });
 
   // Generate DNA helix geometry
-  const generateHelixPoints = (strand: number): Float32Array => {
+  const generateHelixGeometry = (strand: number): THREE.BufferGeometry => {
+    const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(pointsPerStrand * 3);
 
     for (let i = 0; i < pointsPerStrand; i++) {
@@ -63,31 +64,26 @@ export default function DNACore({ position, erosion = 0, isMultiverseView = fals
       positions[i * 3 + 2] = Math.sin(angle) * helixRadius;
     }
 
-    return positions;
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+    return geo;
   };
 
   return (
     <group ref={groupRef} position={position}>
       {/* DNA Strands */}
       {[0, 1].map((strand) => {
-        const positions = generateHelixPoints(strand);
+        const geometry = generateHelixGeometry(strand);
         const color = strand === 0 ? "#ff00ff" : "#00ffff";
 
         return (
           <points
             key={strand}
+            geometry={geometry}
             ref={(el) => {
               if (el) pointsRef.current[strand] = el;
             }}
           >
-            <bufferGeometry>
-              <bufferAttribute
-                attach="attributes-position"
-                count={pointsPerStrand}
-                array={positions}
-                itemSize={3}
-              />
-            </bufferGeometry>
             <pointsMaterial
               size={isMultiverseView ? 1.2 : 0.8}
               color={color}
@@ -110,24 +106,20 @@ export default function DNACore({ position, erosion = 0, isMultiverseView = fals
         const x2 = Math.cos(t + Math.PI) * helixRadius;
         const z2 = Math.sin(t + Math.PI) * helixRadius;
 
-        return (
-          <line key={i}>
-            <bufferGeometry>
-              <bufferAttribute
-                attach="attributes-position"
-                count={2}
-                array={new Float32Array([x1, y, z1, x2, y, z2])}
-                itemSize={3}
-              />
-            </bufferGeometry>
-            <lineBasicMaterial
-              color="#ff4400"
-              transparent
-              opacity={0.6}
-              blending={THREE.AdditiveBlending}
-            />
-          </line>
-        );
+        const lineGeo = new THREE.BufferGeometry();
+        lineGeo.setAttribute('position', new THREE.BufferAttribute(
+          new Float32Array([x1, y, z1, x2, y, z2]),
+          3
+        ));
+        const lineMat = new THREE.LineBasicMaterial({
+          color: "#ff4400",
+          transparent: true,
+          opacity: 0.6,
+          blending: THREE.AdditiveBlending
+        });
+        const line = new THREE.Line(lineGeo, lineMat);
+
+        return <primitive key={i} object={line} />;
       })}
 
       {/* Central glow sphere */}
@@ -179,25 +171,26 @@ export default function DNACore({ position, erosion = 0, isMultiverseView = fals
       </Billboard>
 
       {/* Particle field around DNA */}
-      <points>
-        <bufferGeometry>
-          <bufferAttribute
-            attach="attributes-position"
-            count={500}
-            array={new Float32Array(
-              Array.from({ length: 500 * 3 }, () => (Math.random() - 0.5) * helixRadius * 4)
-            )}
-            itemSize={3}
-          />
-        </bufferGeometry>
-        <pointsMaterial
-          size={0.3}
-          color="#ff00ff"
-          transparent
-          opacity={0.3}
-          sizeAttenuation={true}
-        />
-      </points>
+      {React.useMemo(() => {
+        const particleGeo = new THREE.BufferGeometry();
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(
+          new Float32Array(
+            Array.from({ length: 500 * 3 }, () => (Math.random() - 0.5) * helixRadius * 4)
+          ),
+          3
+        ));
+        return (
+          <points geometry={particleGeo}>
+            <pointsMaterial
+              size={0.3}
+              color="#ff00ff"
+              transparent
+              opacity={0.3}
+              sizeAttenuation={true}
+            />
+          </points>
+        );
+      }, [helixRadius])}
     </group>
   );
 }
