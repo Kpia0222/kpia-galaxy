@@ -13,10 +13,13 @@
     "@react-three/fiber": "^9.5.0",
     "@react-three/postprocessing": "^3.0.4",
     "@types/three": "^0.182.0",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.26.2",
     "next": "16.1.1",
     "postprocessing": "^6.38.2",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "tailwind-merge": "^3.4.0",
     "three": "^0.182.0",
     "tone": "^15.1.22"
   },
