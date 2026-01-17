@@ -17,6 +17,8 @@ import MicrotonalCrystalsInstanced from "./components/instanced/MicrotonalCrysta
 import StarInstancedGroup from "./components/instanced/StarInstancedGroup";
 import { OPTIMIZATION_FLAGS } from "./config/optimizationFlags";
 import { groupEntitiesByGeometry } from "./utils/entityGrouping";
+import FPVCamera from "./components/FPVCamera";
+import Crosshair from "./components/Crosshair";
 
 // =====================================================================
 // 1. 定数・データ定義
@@ -926,6 +928,8 @@ export default function Home() {
   ]);
   const [activeCamSlot, setActiveCamSlot] = useState<number | null>(0);
   const [saveConfirmation, setSaveConfirmation] = useState<number | null>(null);
+  const [isPointerLocked, setIsPointerLocked] = useState(false);
+  const [targetedEntityId, setTargetedEntityId] = useState<string | null>(null);
 
   const refMap = useRef(new Map<string, THREE.Object3D>());
   const cameraHandlerRef = useRef<any>(null);
@@ -975,6 +979,28 @@ export default function Home() {
     window.addEventListener('keydown', handleMultiverseToggle);
     return () => window.removeEventListener('keydown', handleMultiverseToggle);
   }, [activeCamSlot, isSearchFocused]);
+
+  // Pointer lock state monitoring
+  useEffect(() => {
+    const handlePointerLockChange = () => {
+      setIsPointerLocked(document.pointerLockElement !== null);
+    };
+
+    document.addEventListener('pointerlockchange', handlePointerLockChange);
+    return () => document.removeEventListener('pointerlockchange', handlePointerLockChange);
+  }, []);
+
+  // Handle click to select targeted entity in FPV mode
+  useEffect(() => {
+    const handleClick = () => {
+      if (isPointerLocked && targetedEntityId) {
+        handleNavigate(targetedEntityId);
+      }
+    };
+
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [isPointerLocked, targetedEntityId]);
 
   const handleShepherdSignal = () => {
     if (floatingMeteors.length === 0) return;
@@ -1299,8 +1325,8 @@ export default function Home() {
                   ))}
 
                   <AlienComet onShepherdSignal={handleShepherdSignal} />
-                  
-                  <ExplorationCamera
+
+                  <FPVCamera
                     ref={cameraHandlerRef}
                     focusId={focusId}
                     mode={currentMode}
@@ -1309,6 +1335,8 @@ export default function Home() {
                     onManualMove={() => setActiveCamSlot(null)}
                     isSearchFocused={isSearchFocused}
                     onCameraUpdate={setCameraPosition}
+                    onTargetEntity={setTargetedEntityId}
+                    refMap={refMap}
                   />
 
                   <EffectComposer>
@@ -1335,6 +1363,13 @@ export default function Home() {
                   </EffectComposer>
                 </Canvas>
               </div>
+
+              {/* FPV Crosshair - Only visible when pointer is locked */}
+              <Crosshair
+                targetEntity={targetedEntityId}
+                targetLabel={targetEntity?.label}
+                isLocked={isPointerLocked}
+              />
 
               {/* Galaxy Navigator - Visible in UNIVERSE mode */}
               {showTerminal && currentMode === 'UNIVERSE' && (
