@@ -217,6 +217,7 @@ const FPVCamera = forwardRef<FPVCameraHandle, FPVCameraProps>(
       <>
         <PointerLockControls
           ref={controlsRef}
+          args={[camera, gl.domElement]}
           makeDefault
           pointerSpeed={0.5}
         />
