@@ -704,7 +704,7 @@ function StarObj({ data, offset, focusId, onSelect }: { data: EntityData, offset
       <CelestialBody data={data} onClick={onSelect}>
         {visuals.geom}
         <meshStandardMaterial color={data.isForeign ? "#555" : data.color} emissive={data.color} emissiveIntensity={isFocused || isHovered ? 4 : 0.8} flatShading={true} wireframe={visuals.wireframe} />
-        {data.erosion! > 0 && <MicrotonalCrystals amount={data.erosion!} color={data.color} />}
+        {data.erosion! >= 1.0 && <MicrotonalCrystals amount={data.erosion!} color={data.color} />}
         {data.erosion! > 0.8 && <GravitationalDistortion position={new THREE.Vector3(0,0,0)} />}
       </CelestialBody>
       <Billboard position={[0, 2.5, 0]}>
@@ -715,7 +715,7 @@ function StarObj({ data, offset, focusId, onSelect }: { data: EntityData, offset
           <CelestialBody data={planet} onClick={onSelect}>
             <sphereGeometry args={[planet.size, 12, 12]} />
             <meshStandardMaterial color={planet.color} emissive={planet.color} emissiveIntensity={1} />
-            {planet.erosion! > 0 && <MicrotonalCrystals amount={planet.erosion!} color={planet.color} />}
+            {planet.erosion! >= 1.0 && <MicrotonalCrystals amount={planet.erosion!} color={planet.color} />}
           </CelestialBody>
           {planet.children?.map(sat => (
             <OrbitGroup key={sat.id} data={sat} offset={[0,0,0]}>
