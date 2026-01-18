@@ -11,6 +11,8 @@ import LissajousScope from "./LissajousScope";
 interface RealityDistortionRigProps {
   erosion: number;
   setErosion: (value: number) => void;
+  tendency?: number;
+  setTendency?: (value: number) => void;
   cameraPosition?: { x: number, y: number, z: number };
   targetEntity?: {
     id: string;
@@ -23,6 +25,7 @@ interface RealityDistortionRigProps {
     bio?: string;
     youtubeId?: string;
     lyrics?: string;
+    universeId?: number;
   } | null;
   onPickEntity?: () => void;
 }
@@ -30,6 +33,8 @@ interface RealityDistortionRigProps {
 export default function RealityDistortionRig({
   erosion,
   setErosion,
+  tendency = 0,
+  setTendency = () => {},
   cameraPosition,
   targetEntity,
   onPickEntity
@@ -414,6 +419,73 @@ export default function RealityDistortionRig({
             <LissajousScope erosion={erosion} width={400} height={300} />
           </div>
         </div>
+
+        {/* ============================================
+            NASCENT UNIVERSE: TENDENCY GAUGE
+            (Only visible when target entity is from Nascent universe)
+            ============================================ */}
+        {targetEntity?.universeId === 2 && (
+          <div className="bg-black/60 border-2 border-zinc-800 rounded p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[7px] text-zinc-600 font-black tracking-[0.3em] uppercase">
+                TENDENCY_GAUGE
+              </span>
+              <div className="text-[6px] text-zinc-700 font-mono">
+                {tendency < 0.5 ? 'ORDER' : 'CHAOS'} {(tendency * 100).toFixed(1)}%
+              </div>
+            </div>
+
+            {/* Tendency Slider */}
+            <div className="relative mb-3">
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={tendency}
+                onChange={(e) => setTendency(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gradient-to-r from-white via-gray-400 to-purple-600 rounded-lg appearance-none cursor-pointer
+                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-cyan-400 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-zinc-900 [&::-webkit-slider-thumb]:shadow-[0_0_8px_rgba(0,255,255,0.8)]
+                  [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:bg-cyan-400 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-zinc-900 [&::-moz-range-thumb]:shadow-[0_0_8px_rgba(0,255,255,0.8)]"
+              />
+              <div className="flex justify-between text-[6px] text-zinc-600 mt-1">
+                <span>ORDER (White)</span>
+                <span>CHAOS (Purple)</span>
+              </div>
+            </div>
+
+            {/* Visual Indicator */}
+            <div className="h-8 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center">
+              <div
+                className="text-xs font-bold transition-colors duration-300"
+                style={{
+                  color: `rgb(${255 * (1 - tendency)}, ${255 * (1 - tendency)}, ${255})`,
+                  textShadow: `0 0 8px rgb(${255 * (1 - tendency)}, ${255 * (1 - tendency)}, ${255})`
+                }}
+              >
+                {tendency < 0.2 ? '⬡ SUPERPOSITION' : tendency < 0.5 ? '◇ STABILIZING' : tendency < 0.8 ? '◆ COLLAPSING' : '◈ CHAOS'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================
+            NASCENT UNIVERSE: SYSTEM PROMPT
+            (Only visible when target entity is from Nascent universe)
+            ============================================ */}
+        {targetEntity?.universeId === 2 && (
+          <div className="bg-gradient-to-br from-purple-900/20 to-black/60 border-2 border-purple-800/50 rounded p-4">
+            <div className="text-[8px] text-purple-400 font-black tracking-[0.3em] uppercase mb-2">
+              SYSTEM_QUERY
+            </div>
+            <div className="text-sm text-white/90 font-mono leading-relaxed mb-3">
+              この調律を、固定しますか？
+            </div>
+            <div className="text-[7px] text-zinc-500 font-mono italic">
+              // The observer's choice will determine reality's final form...
+            </div>
+          </div>
+        )}
 
         {/* Control Buttons */}
         <div className="grid grid-cols-2 gap-2">

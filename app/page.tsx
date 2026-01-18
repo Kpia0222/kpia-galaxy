@@ -9,6 +9,8 @@ import { BlendFunction, GlitchMode } from "postprocessing";
 import RealityDistortionRig from "./components/RealityDistortionRig";
 import GalaxyNavigator from "./components/GalaxyNavigator";
 import DNACore from "./components/DNACore";
+import NascentCore from "./components/NascentCore";
+import NascentStar from "./components/NascentStar";
 import GravityQuake from "./components/GravityQuake";
 import DeepSpaceNebula from "./components/DeepSpaceNebula";
 import PickParticleStream from "./components/PickParticleStream";
@@ -112,28 +114,39 @@ Alien frequencies in my veins
 const UNIVERSES: UniverseData[] = [
   { id: 0, name: 'ORIGINAL', pos: [0, 0, 0], color: '#ff4400', isMicrotonal: false },
   { id: 1, name: 'MICROTONAL', pos: [2000, 0, 0], color: '#ff00ff', isMicrotonal: true },
-  { id: 2, name: 'LABORATORY', pos: [1000, 0, 0], color: '#00ffff', isMicrotonal: false }
+  { id: 2, name: 'NASCENT', pos: [1000, 0, 1000], color: '#ffffff', isMicrotonal: false }
 ];
 
 // 宇宙生成関数
 const generateGalaxy = (count: number, offset: [number, number, number], universeId: number): EntityData[] => {
   return Array.from({ length: count }, (_, i) => {
     const isMicrotonal = universeId === 1;
-    const categories = isMicrotonal 
+    const isNascent = universeId === 2;
+
+    const categories = isMicrotonal
       ? ["Pure_Micro", "Xenharmonic", "Just_Intonation", "Spectral", "Noise"]
+      : isNascent
+      ? ["Undefined", "Potential", "Collapsed", "Quantum", "Nascent"]
       : ["Original", "Remix", "Bootleg", "Cover", "WIP", "???"];
-      
+
     const category = categories[i % categories.length];
-    const prefix = isMicrotonal ? "Mu" : "Kp";
+    const prefix = isMicrotonal ? "Mu" : isNascent ? "Ns" : "Kp";
     const starId = `${prefix}.${String(i + 1).padStart(4, '0')}`;
     const randomInc = () => [(Math.random() - 0.5) * 0.4, 0, (Math.random() - 0.5) * 0.4] as [number, number, number];
 
     let distance = 0; let color = ""; let size = 1.0; let erosion = isMicrotonal ? 0.9 : 0; let qualia = "0.00";
 
-    if (isMicrotonal) {
+    if (isNascent) {
+        // Nascent universe: all start as pure white, will be colored by tendency dynamically
+        distance = 40 + Math.random() * 120;
+        color = "#ffffff"; // Pure white (Order) - will lerp to purple based on tendency
+        size = 0.6 + Math.random() * 0.6;
+        erosion = 0.0; // No erosion, but has tendency instead
+        qualia = "Superposition";
+    } else if (isMicrotonal) {
         distance = 30 + Math.random() * 150;
-        color = i % 2 === 0 ? "#ff00ff" : "#8800ff"; 
-        erosion = 0.8 + Math.random() * 0.2; 
+        color = i % 2 === 0 ? "#ff00ff" : "#8800ff";
+        erosion = 0.8 + Math.random() * 0.2;
         qualia = "Fluid_Harmony";
     } else {
         switch (category) {
@@ -259,7 +272,8 @@ const generateGalaxy = (count: number, offset: [number, number, number], univers
 };
 
 const INITIAL_GALAXY_DATA = generateGalaxy(40, [0, 0, 0], 0);
-const MICROTONAL_GALAXY_DATA = generateGalaxy(40, [2000, 0, 0], 1); 
+const MICROTONAL_GALAXY_DATA = generateGalaxy(40, [2000, 0, 0], 1);
+const NASCENT_GALAXY_DATA = generateGalaxy(30, [1000, 0, 1000], 2); 
 
 const OORT_METEORS: EntityData[] = Array.from({ length: 200 }, (_, i) => ({
   id: `Mt.${String(i + 1).padStart(3, '0')}`,
@@ -622,6 +636,31 @@ function OrbitGroup({ data, offset, children }: { data: EntityData, offset: [num
   );
 }
 
+// Dynamic Chromatic Aberration - intensifies near Nascent Core
+function DynamicChromaticAberration({ erosion, tendency, cameraPosition }: { erosion: number; tendency: number; cameraPosition: { x: number; y: number; z: number } }) {
+  const [aberrationIntensity, setAberrationIntensity] = useState(erosion * 0.016);
+
+  useEffect(() => {
+    // Calculate distance from camera to Nascent Core at [1000, 0, 1000]
+    const nascentCorePos = new THREE.Vector3(1000, 0, 1000);
+    const camPos = new THREE.Vector3(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+    const distance = camPos.distanceTo(nascentCorePos);
+
+    // Proximity effect: intensifies when within 200 units of core
+    const proximityFactor = distance < 200 ? (1 - distance / 200) : 0;
+
+    // Base aberration from erosion + proximity effect + tendency effect (prismatic)
+    const baseAberration = erosion * 0.016;
+    const proximityAberration = proximityFactor * 0.03; // Strong prismatic effect near core
+    const tendencyAberration = tendency * 0.02; // Chaos increases aberration globally
+
+    const totalAberration = baseAberration + proximityAberration + tendencyAberration;
+    setAberrationIntensity(totalAberration);
+  }, [erosion, tendency, cameraPosition]);
+
+  return <ChromaticAberration offset={new THREE.Vector2(aberrationIntensity, aberrationIntensity)} />;
+}
+
 function CelestialBody({ data, children, onClick }: any) {
   const ref = useRef<THREE.Group>(null);
   const refMap = useContext(RefContext);
@@ -886,6 +925,7 @@ export default function Home() {
   const [isMounted, setIsMounted] = useState(false);
   const [galaxyData, setGalaxyData] = useState<EntityData[]>(INITIAL_GALAXY_DATA);
   const [microGalaxyData, setMicroGalaxyData] = useState<EntityData[]>(MICROTONAL_GALAXY_DATA);
+  const [nascentGalaxyData, setNascentGalaxyData] = useState<EntityData[]>(NASCENT_GALAXY_DATA);
   const [floatingMeteors, setFloatingMeteors] = useState<EntityData[]>(OORT_METEORS);
   const [fallingMeteors, setFallingMeteors] = useState<{ meteorData: EntityData, targetId: string }[]>([]);
   const [impactEvents, setImpactEvents] = useState<{ id: string, position: THREE.Vector3, color: string }[]>([]);
@@ -917,14 +957,15 @@ export default function Home() {
 
   const [labInventory, setLabInventory] = useState<EntityData[]>([]);
   const [globalErosion, setGlobalErosion] = useState<number>(0.0);
+  const [tendency, setTendency] = useState<number>(0.0); // 0.0 (Order/White) to 1.0 (Chaos/Purple)
   const [cameraPosition, setCameraPosition] = useState({ x: 0, y: 400, z: 800 });
   const [currentGalaxy, setCurrentGalaxy] = useState<number>(0);
 
   const [cameraSlots, setCameraSlots] = useState<CameraSlot[]>([
     { pos: new THREE.Vector3(0, 400, 800), target: new THREE.Vector3(0, 0, 0), label: "UNIVERSE 1 (ORIGINAL)" },
     { pos: new THREE.Vector3(2000, 400, 800), target: new THREE.Vector3(2000, 0, 0), label: "UNIVERSE 2 (MICROTONAL)" },
-    { pos: new THREE.Vector3(1000, 300, 300), target: new THREE.Vector3(1000, 0, 0), label: "UNIVERSE 3 (LAB)" },
-    { pos: new THREE.Vector3(1000, 1500, 3000), target: new THREE.Vector3(1000, 0, 0), label: "MULTIVERSE (OVERVIEW)" }
+    { pos: new THREE.Vector3(1000, 300, 1300), target: new THREE.Vector3(1000, 0, 1000), label: "UNIVERSE 3 (NASCENT)" },
+    { pos: new THREE.Vector3(1000, 1500, 3000), target: new THREE.Vector3(1000, 0, 500), label: "MULTIVERSE (OVERVIEW)" }
   ]);
   const [activeCamSlot, setActiveCamSlot] = useState<number | null>(0);
   const [saveConfirmation, setSaveConfirmation] = useState<number | null>(null);
@@ -1296,6 +1337,24 @@ export default function Home() {
                     )}
                   </group>
 
+                  {/* Galaxy 3 (Nascent) - The Unformed Universe */}
+                  <group position={[1000, 0, 1000]}>
+                    <NascentCore position={[0, 0, 0]} tendency={tendency} />
+                    <HoverContext.Provider value={{ hoveredId, setHoveredId }}>
+                      {nascentGalaxyData.map(star => (
+                        <NascentStar
+                          key={star.id}
+                          data={star}
+                          offset={[0, 0, 0]}
+                          tendency={tendency}
+                          focusId={focusId}
+                          onSelect={handleNavigate}
+                          hoverCtx={{ hoveredId, setHoveredId }}
+                        />
+                      ))}
+                    </HoverContext.Provider>
+                  </group>
+
                   <group>{SHARD_DATA.map(shard => <QuestionShard key={shard.id} data={shard} onSelect={handleNavigate} />)}</group>
                   <group>{floatingMeteors.map(meteor => <FloatingMeteor key={meteor.id} data={meteor} onSelect={handleNavigate} />)}</group>
                   {fallingMeteors.map((item) => <FallingMeteor key={`falling-${item.meteorData.id}`} data={item.meteorData} targetId={item.targetId} onImpact={handleMeteorImpact} />)}
@@ -1354,8 +1413,8 @@ export default function Home() {
                       mode={GlitchMode.SPORADIC}
                     />
 
-                    {/* ChromaticAberration: erosionに強く反応（感度2倍） */}
-                    <ChromaticAberration offset={new THREE.Vector2(globalErosion * 0.016, globalErosion * 0.016)} />
+                    {/* ChromaticAberration: erosionに強く反応（感度2倍）+ Nascent Core proximity effect */}
+                    <DynamicChromaticAberration erosion={globalErosion} tendency={tendency} cameraPosition={cameraPosition} />
 
                     {/* Noise & Vignette: 変更なし */}
                     <Noise opacity={0.1} premultiply blendFunction={BlendFunction.SOFT_LIGHT} />
@@ -1583,6 +1642,8 @@ export default function Home() {
                 <RealityDistortionRig
                   erosion={globalErosion}
                   setErosion={setGlobalErosion}
+                  tendency={tendency}
+                  setTendency={setTendency}
                   cameraPosition={cameraPosition}
                   targetEntity={targetEntity}
                   onPickEntity={() => targetEntity && pickEntity(targetEntity)}
