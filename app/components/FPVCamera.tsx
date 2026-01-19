@@ -1,22 +1,58 @@
 "use client";
 
+/**
+ * =====================================================================
+ * FPVCamera - 一人称視点カメラシステム
+ * =====================================================================
+ *
+ * KPIA Portalの主要カメラコントローラー
+ *
+ * 機能:
+ * - FPS風の自由移動（WASD + Space/Shift）
+ * - マウスによる視点回転（PointerLock使用）
+ * - 慣性とダンピングによる滑らかな動き
+ * - エンティティフォーカス時の自動カメラ移動
+ * - カメラスロットへのスムーズな遷移
+ * - 画面中央のレイキャストによるエンティティ検出
+ *
+ * キー操作:
+ * - W/A/S/D: 前後左右移動
+ * - Space: 上昇
+ * - Shift: 下降
+ * - マウス: 視点回転（クリックでPointerLock）
+ *
+ * パフォーマンス:
+ * - 移動速度: 10 units/秒（非常に精密な制御）
+ * - ダンピング: 0.92（滑らかな減速）
+ */
+
 import React, { useRef, useEffect, useImperativeHandle, forwardRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import { PointerLockControls } from "@react-three/drei";
 import * as THREE from "three";
 
+/**
+ * コンポーネントのプロパティ
+ */
 interface FPVCameraProps {
-  focusId: string | null;
-  mode: string;
-  activeCamSlot: number | null;
-  cameraSlots: Array<{ pos: THREE.Vector3; target: THREE.Vector3; label: string }>;
-  onManualMove: () => void;
-  isSearchFocused?: boolean;
-  onCameraUpdate?: (pos: { x: number; y: number; z: number }) => void;
-  onTargetEntity?: (entityId: string | null) => void;
-  refMap: React.RefObject<Map<string, THREE.Object3D>>;
+  focusId: string | null;                  // フォーカス中のエンティティID
+  mode: string;                            // 現在のモード（UNIVERSE, STAR, PLANET等）
+  activeCamSlot: number | null;            // アクティブなカメラスロット番号
+  cameraSlots: Array<{                     // カメラスロット配列
+    pos: THREE.Vector3;
+    target: THREE.Vector3;
+    label: string;
+  }>;
+  onManualMove: () => void;                // 手動移動時のコールバック
+  isSearchFocused?: boolean;               // 検索窓がフォーカスされているか
+  onCameraUpdate?: (pos: { x: number; y: number; z: number }) => void; // カメラ位置更新コールバック
+  onTargetEntity?: (entityId: string | null) => void; // 画面中央のエンティティ検出コールバック
+  refMap: React.RefObject<Map<string, THREE.Object3D>>; // エンティティの3Dオブジェクト参照マップ
 }
 
+/**
+ * 外部から呼び出し可能なハンドル
+ */
 export interface FPVCameraHandle {
   getCurrentView: () => { pos: THREE.Vector3; target: THREE.Vector3 };
 }
@@ -36,7 +72,7 @@ const FPVCamera = forwardRef<FPVCameraHandle, FPVCameraProps>(
     },
     ref
   ) => {
-    const { camera, gl, raycaster, scene } = useThree();
+    const { camera, gl, raycaster } = useThree();
     const controlsRef = useRef<any>(null);
     const velocityRef = useRef(new THREE.Vector3(0, 0, 0));
     const targetVec = useRef(new THREE.Vector3(0, 0, 0));
@@ -114,9 +150,9 @@ const FPVCamera = forwardRef<FPVCameraHandle, FPVCameraProps>(
     }, [focusId, mode, refMap]);
 
     // Main update loop
-    useFrame((state, delta) => {
+    useFrame((_state, delta) => {
       // Tuned for comfortable space exploration
-      const speed = 150 * delta; // Reduced for more controlled movement
+      const speed = 10 * delta; // Further reduced for very controlled movement
       const damping = 0.92; // Slightly increased from 0.9 for smoother deceleration
 
       // Movement input (only when pointer is locked or keyboard control)
@@ -156,7 +192,6 @@ const FPVCamera = forwardRef<FPVCameraHandle, FPVCameraProps>(
 
         // Look at target when not in pointer lock
         if (controlsRef.current && !isLockedRef.current) {
-          const direction = new THREE.Vector3().subVectors(targetVec.current, camera.position);
           const targetQuaternion = new THREE.Quaternion().setFromRotationMatrix(
             new THREE.Matrix4().lookAt(camera.position, targetVec.current, camera.up)
           );
@@ -217,7 +252,8 @@ const FPVCamera = forwardRef<FPVCameraHandle, FPVCameraProps>(
       <>
         <PointerLockControls
           ref={controlsRef}
-          args={[camera, gl.domElement]}
+          camera={camera}
+          domElement={gl.domElement}
           makeDefault
           pointerSpeed={0.5}
         />

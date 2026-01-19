@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useMemo, useContext } from "react";
+import React, { useRef, useMemo, useContext, memo } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { Billboard, Text } from "@react-three/drei";
@@ -28,7 +28,7 @@ function OrbitGroup({ data, offset, children }: { data: any; offset: [number, nu
     const y = offset[1];
 
     ref.current.position.set(x, y, z);
-    ref.current.rotation.set(...data.inclination);
+    ref.current.rotation.set(data.inclination[0], data.inclination[1], data.inclination[2]);
   });
 
   return (
@@ -69,7 +69,7 @@ function CelestialBody({ data, onClick, children, hoverCtx }: { data: any; onCli
   );
 }
 
-export default function NascentStar({ data, offset, tendency, focusId, onSelect, hoverCtx }: NascentStarProps) {
+const NascentStar = memo(function NascentStar({ data, offset, tendency, focusId, onSelect, hoverCtx }: NascentStarProps) {
   const meshRef = useRef<THREE.Mesh>(null);
   const isHovered = hoverCtx?.hoveredId === data.id;
   const isFocused = focusId === data.id;
@@ -154,11 +154,13 @@ export default function NascentStar({ data, offset, tendency, focusId, onSelect,
           <bufferGeometry>
             <bufferAttribute
               attach="attributes-position"
+              args={[
+                new Float32Array(
+                  Array.from({ length: 150 }, () => (Math.random() - 0.5) * data.size * 3)
+                ),
+                3
+              ]}
               count={50}
-              array={new Float32Array(
-                Array.from({ length: 150 }, () => (Math.random() - 0.5) * data.size * 3)
-              )}
-              itemSize={3}
             />
           </bufferGeometry>
           <pointsMaterial
@@ -201,4 +203,6 @@ export default function NascentStar({ data, offset, tendency, focusId, onSelect,
       ))}
     </OrbitGroup>
   );
-}
+});
+
+export default NascentStar;

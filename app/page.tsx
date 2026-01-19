@@ -1,31 +1,91 @@
 "use client";
 
-import React, { useRef, useState, useEffect, useMemo, createContext, useContext, Suspense, useImperativeHandle, forwardRef } from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Text, Environment, Sparkles, KeyboardControls, useKeyboardControls, Grid, Billboard, Line, Torus, Stars } from "@react-three/drei";
-import { EffectComposer, Bloom, Noise, Vignette, ChromaticAberration, Scanline, Glitch } from "@react-three/postprocessing";
+// =====================================================================
+// インポート - React & Three.js
+// =====================================================================
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useMemo,
+  createContext,
+  useContext,
+  Suspense,
+  useImperativeHandle,
+  forwardRef
+} from "react";
+import {
+  Canvas,
+  useFrame,
+  useThree
+} from "@react-three/fiber";
+import {
+  OrbitControls,
+  Text,
+  Environment,
+  Sparkles,
+  KeyboardControls,
+  useKeyboardControls,
+  Billboard,
+  Torus,
+  Stars
+} from "@react-three/drei";
+import {
+  EffectComposer,
+  Noise,
+  Vignette,
+  ChromaticAberration,
+  Scanline,
+  Glitch
+} from "@react-three/postprocessing";
 import * as THREE from "three";
 import { BlendFunction, GlitchMode } from "postprocessing";
+
+// =====================================================================
+// インポート - カスタムコンポーネント
+// =====================================================================
+// ビジュアルエフェクト
 import RealityDistortionRig from "./components/RealityDistortionRig";
-import GalaxyNavigator from "./components/GalaxyNavigator";
-import DNACore from "./components/DNACore";
-import NascentCore from "./components/NascentCore";
-import NascentStar from "./components/NascentStar";
-import GravityQuake from "./components/GravityQuake";
 import DeepSpaceNebula from "./components/DeepSpaceNebula";
 import PickParticleStream from "./components/PickParticleStream";
-import GalaxySelectionUI from "./components/GalaxySelectionUI";
+import GravityQuake from "./components/GravityQuake";
+
+// コアシステム
+import DNACore from "./components/DNACore";
+import NascentCore from "./components/NascentCore";
+
+// 天体オブジェクト
+import NascentStar from "./components/NascentStar";
 import MicrotonalCrystalsInstanced from "./components/instanced/MicrotonalCrystalsInstanced";
 import StarInstancedGroup from "./components/instanced/StarInstancedGroup";
+
+// UI コンポーネント
+import GalaxyNavigator from "./components/GalaxyNavigator";
+import GalaxySelectionUI from "./components/GalaxySelectionUI";
+import Crosshair from "./components/Crosshair";
+
+// カメラシステム
+import FPVCamera from "./components/FPVCamera";
+
+// マルチバースシステム
+import MultiverseHub from "./components/MultiverseHub";
+import MultiverseSelectorDock from "./components/MultiverseSelectorDock";
+import MultiverseGateView from "./components/MultiverseGateView";
+import WarpEffect from "./components/WarpEffect";
+import WarpCameraTransition from "./components/WarpCameraTransition";
+
+// ユーティリティ
 import { OPTIMIZATION_FLAGS } from "./config/optimizationFlags";
 import { groupEntitiesByGeometry } from "./utils/entityGrouping";
-import FPVCamera from "./components/FPVCamera";
-import Crosshair from "./components/Crosshair";
 
 // =====================================================================
 // 1. 定数・データ定義
 // =====================================================================
 
+/**
+ * プロジェクトの哲学的な問いかけ
+ * DNAモード時に表示される
+ */
 const QUESTIONS = [
   "もし、音響物理が最初から微分音だったら？",
   "自ら設計したエイリアンに侵食されることは、進化か？",
@@ -34,6 +94,10 @@ const QUESTIONS = [
   "『でかいポップ』は、平均律の呪縛を飲み込めるか？"
 ];
 
+/**
+ * ソーシャルメディアリンク
+ * UIに表示されるアーティストのSNSアカウント
+ */
 const SOCIAL_LINKS = [
   { name: "YouTube", url: "https://www.youtube.com/@popKpia", label: "Youtube" },
   { name: "X (Twitter)", url: "https://x.com/takt_min", label: "X(Twitter)" },
@@ -44,56 +108,100 @@ const SOCIAL_LINKS = [
   { name: "Contact", url: "mailto:Kpia0222@gmail.com", label: "Contact" },
 ];
 
+/**
+ * ライブイベント情報
+ * 今後の予定されているイベント
+ */
 const LIVE_EVENTS = [
   { id: "20250126", title: "27dot RELEASE LIVE", date: "2025.01.26", place: "函館ARARA" },
   { id: "202502xx", title: "DJ Event (Feb)", date: "2025.02.xx", place: "TBA" },
   { id: "202503xx", title: "DJ Event (Mar)", date: "2025.03.xx", place: "TBA" }
 ];
 
+/**
+ * アーティストプロフィール情報
+ */
 const PROFILE_DATA = {
   name: "Kpia",
   ver: "26.1.50 (Reality Distortion System)",
   bio: "整理、ハック、そして逸脱。\n秩序あるノイズを構築する。",
 };
 
+// =====================================================================
+// 2. 型定義
+// =====================================================================
+
+/**
+ * エンティティの種類
+ * - star: 星（楽曲）
+ * - planet: 惑星（楽曲のバリエーション）
+ * - satellite: 衛星（さらなるバリエーション）
+ * - relic: 遺物（特殊なオブジェクト）
+ * - meteor: 流星（一時的なオブジェクト）
+ */
 type EntityType = 'star' | 'planet' | 'satellite' | 'relic' | 'meteor';
 
+/**
+ * エンティティデータ
+ * 天体オブジェクトの全ての情報を保持
+ */
 interface EntityData {
-  id: string;
-  type: EntityType;
-  label: string;
-  color: string;
-  size: number;
-  distance: number;
-  speed: number;
-  inclination: [number, number, number];
-  phase: number;
-  children?: EntityData[];
-  parent?: string;
-  centDeviation?: number; // Deviation from 12-TET in cents (-50 to +50)
-  youtubeId?: string;
-  category?: string;
-  clicks?: number;
-  erosion?: number;
-  isForeign?: boolean;
-  bio?: string;
-  lyrics?: string;
-  qualia?: string;
-  universeId?: number;
+  // 基本情報
+  id: string;                             // 一意なID
+  type: EntityType;                       // エンティティの種類
+  label: string;                          // 表示名
+  color: string;                          // 色（HEX形式）
+
+  // 物理的特性
+  size: number;                           // サイズ
+  distance: number;                       // 中心からの距離
+  speed: number;                          // 公転速度
+  inclination: [number, number, number];  // 軌道傾斜角
+  phase: number;                          // 初期位相
+
+  // 階層構造
+  children?: EntityData[];                // 子エンティティ（惑星、衛星）
+  parent?: string;                        // 親エンティティのID
+
+  // 音楽的特性
+  centDeviation?: number;                 // 12平均律からの偏差（セント単位: -50 to +50）
+  youtubeId?: string;                     // YouTube動画ID
+  category?: string;                      // カテゴリー
+
+  // メタデータ
+  clicks?: number;                        // クリック数
+  erosion?: number;                       // 侵食度（0.0 - 1.0）
+  isForeign?: boolean;                    // 異星由来かどうか
+  bio?: string;                           // 説明文
+  lyrics?: string;                        // 歌詞
+  qualia?: string;                        // クオリア（感覚的特性）
+  universeId?: number;                    // 所属する宇宙のID
 }
 
+/**
+ * 宇宙データ
+ * 各マルチバースの情報
+ */
 interface UniverseData {
-  id: number;
-  name: string;
-  pos: [number, number, number];
-  color: string;
-  isMicrotonal: boolean;
+  id: number;                             // 宇宙ID
+  name: string;                           // 宇宙名
+  type: "Canon" | "Xen" | "Lab" | "Unformed";  // 宇宙の種類
+  pos: [number, number, number];          // 3D空間での位置
+  color: string;                          // テーマカラー
+  isMicrotonal: boolean;                  // 微分音宇宙かどうか
+  erosion: number;                        // 侵食度
+  tendency: number;                       // 傾向（秩序←→混沌）
+  starCount: number;                      // 星の数
 }
 
+/**
+ * カメラスロット
+ * プリセットされたカメラ位置
+ */
 interface CameraSlot {
-  pos: THREE.Vector3;
-  target: THREE.Vector3;
-  label: string;
+  pos: THREE.Vector3;                     // カメラ位置
+  target: THREE.Vector3;                  // 注視点
+  label: string;                          // スロット名
 }
 
 const SAMPLE_LYRICS = `
@@ -110,11 +218,41 @@ Alien frequencies in my veins
 これはバグじゃない、進化の産声
 `;
 
-// Multiverse Configuration
+// Multiverse Configuration - Expandable Universe Array
 const UNIVERSES: UniverseData[] = [
-  { id: 0, name: 'ORIGINAL', pos: [0, 0, 0], color: '#ff4400', isMicrotonal: false },
-  { id: 1, name: 'MICROTONAL', pos: [2000, 0, 0], color: '#ff00ff', isMicrotonal: true },
-  { id: 2, name: 'NASCENT', pos: [1000, 0, 1000], color: '#ffffff', isMicrotonal: false }
+  {
+    id: 0,
+    name: 'CANON',
+    type: 'Canon',
+    pos: [0, 0, 0],
+    color: '#ff4400',
+    isMicrotonal: false,
+    erosion: 0.2,
+    tendency: 0.1,
+    starCount: 40
+  },
+  {
+    id: 1,
+    name: 'XEN',
+    type: 'Xen',
+    pos: [2000, 0, 0],
+    color: '#ff00ff',
+    isMicrotonal: true,
+    erosion: 0.8,
+    tendency: 0.6,
+    starCount: 40
+  },
+  {
+    id: 2,
+    name: 'NASCENT',
+    type: 'Unformed',
+    pos: [1000, 0, 1000],
+    color: '#ffffff',
+    isMicrotonal: false,
+    erosion: 0.0,
+    tendency: 0.0,
+    starCount: 30
+  }
 ];
 
 // 宇宙生成関数
@@ -126,8 +264,8 @@ const generateGalaxy = (count: number, offset: [number, number, number], univers
     const categories = isMicrotonal
       ? ["Pure_Micro", "Xenharmonic", "Just_Intonation", "Spectral", "Noise"]
       : isNascent
-      ? ["Undefined", "Potential", "Collapsed", "Quantum", "Nascent"]
-      : ["Original", "Remix", "Bootleg", "Cover", "WIP", "???"];
+        ? ["Undefined", "Potential", "Collapsed", "Quantum", "Nascent"]
+        : ["Original", "Remix", "Bootleg", "Cover", "WIP", "???"];
 
     const category = categories[i % categories.length];
     const prefix = isMicrotonal ? "Mu" : isNascent ? "Ns" : "Kp";
@@ -137,26 +275,26 @@ const generateGalaxy = (count: number, offset: [number, number, number], univers
     let distance = 0; let color = ""; let size = 1.0; let erosion = isMicrotonal ? 0.9 : 0; let qualia = "0.00";
 
     if (isNascent) {
-        // Nascent universe: all start as pure white, will be colored by tendency dynamically
-        distance = 40 + Math.random() * 120;
-        color = "#ffffff"; // Pure white (Order) - will lerp to purple based on tendency
-        size = 0.6 + Math.random() * 0.6;
-        erosion = 0.0; // No erosion, but has tendency instead
-        qualia = "Superposition";
+      // Nascent universe: all start as pure white, will be colored by tendency dynamically
+      distance = 40 + Math.random() * 120;
+      color = "#ffffff"; // Pure white (Order) - will lerp to purple based on tendency
+      size = 0.6 + Math.random() * 0.6;
+      erosion = 0.0; // No erosion, but has tendency instead
+      qualia = "Superposition";
     } else if (isMicrotonal) {
-        distance = 30 + Math.random() * 150;
-        color = i % 2 === 0 ? "#ff00ff" : "#8800ff";
-        erosion = 0.8 + Math.random() * 0.2;
-        qualia = "Fluid_Harmony";
+      distance = 30 + Math.random() * 150;
+      color = i % 2 === 0 ? "#ff00ff" : "#8800ff";
+      erosion = 0.8 + Math.random() * 0.2;
+      qualia = "Fluid_Harmony";
     } else {
-        switch (category) {
-            case "Original": distance = 30 + Math.random() * 20; color = "#ff4400"; erosion = 0.05; qualia = "Artificial_Grid"; break;
-            case "Cover": distance = 50 + Math.random() * 20; color = "#ffffff"; erosion = 0.1; qualia = "Mimicry"; break;
-            case "Remix": distance = 80 + Math.random() * 25; color = "#00ffff"; erosion = 0.4; qualia = "Fluctuation"; break;
-            case "WIP": distance = 120 + Math.random() * 30; color = "#ccff00"; size = 0.4; erosion = 0.3; qualia = "Unborn"; break;
-            case "Bootleg": distance = 100 + Math.random() * 25; color = "#ff00ff"; erosion = 0.7; qualia = "Violation"; break;
-            case "???": distance = 160 + Math.random() * 40; color = "#220033"; erosion = 1.0; qualia = "The_Void"; break;
-        }
+      switch (category) {
+        case "Original": distance = 30 + Math.random() * 20; color = "#ff4400"; erosion = 0.05; qualia = "Artificial_Grid"; break;
+        case "Cover": distance = 50 + Math.random() * 20; color = "#ffffff"; erosion = 0.1; qualia = "Mimicry"; break;
+        case "Remix": distance = 80 + Math.random() * 25; color = "#00ffff"; erosion = 0.4; qualia = "Fluctuation"; break;
+        case "WIP": distance = 120 + Math.random() * 30; color = "#ccff00"; size = 0.4; erosion = 0.3; qualia = "Unborn"; break;
+        case "Bootleg": distance = 100 + Math.random() * 25; color = "#ff00ff"; erosion = 0.7; qualia = "Violation"; break;
+        case "???": distance = 160 + Math.random() * 40; color = "#220033"; erosion = 1.0; qualia = "The_Void"; break;
+      }
     }
 
     const children: EntityData[] = [];
@@ -260,30 +398,30 @@ const generateGalaxy = (count: number, offset: [number, number, number], univers
     }
 
     return {
-        id: starId, type: 'star', label: starId, category, color, size, distance,
-        speed: 0.01 + Math.random() * 0.03, inclination: randomInc(), phase: Math.random() * 6,
-        youtubeId: (!isMicrotonal && i % 4 === 0) ? "eh8noQsIhjg" : undefined,
-        children, clicks: 0, erosion, isForeign: false,
-        lyrics: (!isMicrotonal) ? SAMPLE_LYRICS : undefined,
-        qualia, universeId,
-        centDeviation: starCentDeviation
+      id: starId, type: 'star', label: starId, category, color, size, distance,
+      speed: 0.01 + Math.random() * 0.03, inclination: randomInc(), phase: Math.random() * 6,
+      youtubeId: (!isMicrotonal && i % 4 === 0) ? "eh8noQsIhjg" : undefined,
+      children, clicks: 0, erosion, isForeign: false,
+      lyrics: (!isMicrotonal) ? SAMPLE_LYRICS : undefined,
+      qualia, universeId,
+      centDeviation: starCentDeviation
     };
   });
 };
 
 const INITIAL_GALAXY_DATA = generateGalaxy(40, [0, 0, 0], 0);
 const MICROTONAL_GALAXY_DATA = generateGalaxy(40, [2000, 0, 0], 1);
-const NASCENT_GALAXY_DATA = generateGalaxy(30, [1000, 0, 1000], 2); 
+const NASCENT_GALAXY_DATA = generateGalaxy(30, [1000, 0, 1000], 2);
 
 const OORT_METEORS: EntityData[] = Array.from({ length: 200 }, (_, i) => ({
   id: `Mt.${String(i + 1).padStart(3, '0')}`,
-  type: 'meteor', label: `Ref_Signal_${i+1}`, category: 'Reference',
-  color: "#aaaaaa", size: 0.3 + Math.random() * 0.4, 
+  type: 'meteor', label: `Ref_Signal_${i + 1}`, category: 'Reference',
+  color: "#aaaaaa", size: 0.3 + Math.random() * 0.4,
   distance: 150 + Math.random() * 300,
-  speed: 0.005 + Math.random() * 0.045, 
+  speed: 0.005 + Math.random() * 0.045,
   inclination: [(Math.random() - 0.5) * Math.PI, 0, (Math.random() - 0.5) * Math.PI],
   phase: Math.random() * Math.PI * 2,
-  erosion: Math.random(), 
+  erosion: Math.random(),
   bio: "External Thought Pattern",
   lyrics: "Raw data fragment from external source...",
   qualia: "Unknown_Signal",
@@ -321,7 +459,7 @@ const controlsMap = [
 // 2. 3D Components
 // =====================================================================
 
-function MicrotonalCrystals({ amount, color }: { amount: number, color: string }) {
+const MicrotonalCrystals = React.memo(function MicrotonalCrystals({ amount, color }: { amount: number, color: string }) {
   // Use instanced version if optimization flag is enabled
   if (OPTIMIZATION_FLAGS.ENABLE_INSTANCED_CRYSTALS) {
     return (
@@ -381,7 +519,7 @@ function MicrotonalCrystals({ amount, color }: { amount: number, color: string }
       )}
     </group>
   );
-}
+});
 
 function GravitationalDistortion({ position }: { position: THREE.Vector3 }) {
   const groupRef = useRef<THREE.Group>(null);
@@ -405,7 +543,7 @@ function GravitationalDistortion({ position }: { position: THREE.Vector3 }) {
 
   return (
     <group ref={groupRef} position={position}>
-      <mesh rotation={[Math.PI/2, 0, 0]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
         <ringGeometry args={[2, 6, 32]} />
         <meshBasicMaterial
           color="#000"
@@ -416,7 +554,7 @@ function GravitationalDistortion({ position }: { position: THREE.Vector3 }) {
           premultipliedAlpha={true}
         />
       </mesh>
-      <mesh rotation={[Math.PI/2, 0, 0]}>
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
         <ringGeometry args={[2, 2.2, 32]} />
         <meshBasicMaterial color="#fff" transparent opacity={0.2} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
       </mesh>
@@ -440,8 +578,8 @@ function ImpactEffect({ position, color }: { position: THREE.Vector3, color: str
 
   return (
     <group ref={groupRef} position={position}>
-      <mesh rotation={[Math.PI/2, 0, 0]}><ringGeometry args={[0.5, 1, 32]} /><meshBasicMaterial color={color} transparent opacity={1} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} /></mesh>
-      <mesh rotation={[Math.PI/2, 0, 0]}><ringGeometry args={[0.2, 0.8, 32]} /><meshBasicMaterial color="white" transparent opacity={0.8} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} /></mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]}><ringGeometry args={[0.5, 1, 32]} /><meshBasicMaterial color={color} transparent opacity={1} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} /></mesh>
+      <mesh rotation={[Math.PI / 2, 0, 0]}><ringGeometry args={[0.2, 0.8, 32]} /><meshBasicMaterial color="white" transparent opacity={0.8} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} /></mesh>
       <pointLight color={color} intensity={20} distance={50} decay={2} />
       <Sparkles count={30} scale={4} size={10} speed={2} color={color} />
     </group>
@@ -512,7 +650,7 @@ function FallingMeteor({ data, targetId, onImpact }: { data: EntityData, targetI
 
   useFrame((state, delta) => {
     if (!active || !ref.current || !refMap?.current.has(targetId)) return;
-    const targetPos = new THREE.Vector3(); 
+    const targetPos = new THREE.Vector3();
     refMap.current.get(targetId)!.getWorldPosition(targetPos);
     const dist = ref.current.position.distanceTo(targetPos);
     const speed = 1.0 + (250 - dist) * 0.05;
@@ -611,7 +749,7 @@ function LiquidMetalDNA({ onClick, erosion = 0.2 }: { onClick: () => void, erosi
   );
 }
 
-function OrbitGroup({ data, offset, children }: { data: EntityData, offset: [number, number, number], children: React.ReactNode }) {
+const OrbitGroup = React.memo(function OrbitGroup({ data, offset, children }: { data: EntityData, offset: [number, number, number], children: React.ReactNode }) {
   const groupRef = useRef<THREE.Group>(null);
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
@@ -634,15 +772,16 @@ function OrbitGroup({ data, offset, children }: { data: EntityData, offset: [num
       </group>
     </group>
   );
-}
+});
 
 // Dynamic Chromatic Aberration - intensifies near Nascent Core
-function DynamicChromaticAberration({ erosion, tendency, cameraPosition }: { erosion: number; tendency: number; cameraPosition: { x: number; y: number; z: number } }) {
-  const [aberrationIntensity, setAberrationIntensity] = useState(erosion * 0.016);
+const DynamicChromaticAberration = React.memo(function DynamicChromaticAberration({ erosion, tendency, cameraPosition }: { erosion: number; tendency: number; cameraPosition: { x: number; y: number; z: number } }) {
+  // Memoize Nascent Core position (constant)
+  const nascentCorePos = useMemo(() => new THREE.Vector3(1000, 0, 1000), []);
 
-  useEffect(() => {
-    // Calculate distance from camera to Nascent Core at [1000, 0, 1000]
-    const nascentCorePos = new THREE.Vector3(1000, 0, 1000);
+  // Calculate aberration intensity
+  const aberrationIntensity = useMemo(() => {
+    // Calculate distance from camera to Nascent Core
     const camPos = new THREE.Vector3(cameraPosition.x, cameraPosition.y, cameraPosition.z);
     const distance = camPos.distanceTo(nascentCorePos);
 
@@ -654,33 +793,56 @@ function DynamicChromaticAberration({ erosion, tendency, cameraPosition }: { ero
     const proximityAberration = proximityFactor * 0.03; // Strong prismatic effect near core
     const tendencyAberration = tendency * 0.02; // Chaos increases aberration globally
 
-    const totalAberration = baseAberration + proximityAberration + tendencyAberration;
-    setAberrationIntensity(totalAberration);
-  }, [erosion, tendency, cameraPosition]);
+    return baseAberration + proximityAberration + tendencyAberration;
+  }, [erosion, tendency, cameraPosition, nascentCorePos]);
 
-  return <ChromaticAberration offset={new THREE.Vector2(aberrationIntensity, aberrationIntensity)} />;
-}
+  // Memoize offset vector
+  const offsetVector = useMemo(() => new THREE.Vector2(aberrationIntensity, aberrationIntensity), [aberrationIntensity]);
 
-function CelestialBody({ data, children, onClick }: any) {
+  return <ChromaticAberration offset={offsetVector} />;
+});
+
+const CelestialBody = React.memo(function CelestialBody({ data, children, onClick }: any) {
   const ref = useRef<THREE.Group>(null);
   const refMap = useContext(RefContext);
   const hoverCtx = useContext(HoverContext);
+
   useEffect(() => {
     if (ref.current && refMap) refMap.current.set(data.id, ref.current);
     return () => { if (refMap) refMap.current.delete(data.id); };
   }, [data.id, refMap]);
+
+  const handleClick = React.useCallback((e: any) => {
+    e.stopPropagation();
+    onClick(data.id);
+  }, [onClick, data.id]);
+
+  const handlePointerOver = React.useCallback((e: any) => {
+    e.stopPropagation();
+    hoverCtx?.setHoveredId(data.id);
+    document.body.style.cursor = 'pointer';
+  }, [hoverCtx, data.id]);
+
+  const handlePointerOut = React.useCallback((e: any) => {
+    e.stopPropagation();
+    hoverCtx?.setHoveredId(null);
+    document.body.style.cursor = 'auto';
+  }, [hoverCtx]);
+
   return (
     <group ref={ref}>
-      <mesh onClick={(e) => { e.stopPropagation(); onClick(data.id); }} onPointerOver={(e) => { e.stopPropagation(); hoverCtx?.setHoveredId(data.id); document.body.style.cursor = 'pointer'; }} onPointerOut={(e) => { e.stopPropagation(); hoverCtx?.setHoveredId(null); document.body.style.cursor = 'auto'; }}>{children}</mesh>
+      <mesh onClick={handleClick} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
+        {children}
+      </mesh>
     </group>
   );
-}
+});
 
-function StarObj({ data, offset, focusId, onSelect }: { data: EntityData, offset: [number, number, number], focusId: string | null, onSelect: (id: string) => void }) {
+const StarObj = React.memo(function StarObj({ data, offset, focusId, onSelect }: { data: EntityData, offset: [number, number, number], focusId: string | null, onSelect: (id: string) => void }) {
   const hoverCtx = useContext(HoverContext);
   const isHovered = hoverCtx?.hoveredId === data.id;
   const isFocused = focusId === data.id;
-  
+
   const visuals = useMemo(() => {
     if (data.isForeign) return { geom: <octahedronGeometry args={[data.size, 0]} />, wireframe: false };
     switch (data.category) {
@@ -705,20 +867,20 @@ function StarObj({ data, offset, focusId, onSelect }: { data: EntityData, offset
         {visuals.geom}
         <meshStandardMaterial color={data.isForeign ? "#555" : data.color} emissive={data.color} emissiveIntensity={isFocused || isHovered ? 4 : 0.8} flatShading={true} wireframe={visuals.wireframe} />
         {data.erosion! >= 1.0 && <MicrotonalCrystals amount={data.erosion!} color={data.color} />}
-        {data.erosion! > 0.8 && <GravitationalDistortion position={new THREE.Vector3(0,0,0)} />}
+        {data.erosion! > 0.8 && <GravitationalDistortion position={new THREE.Vector3(0, 0, 0)} />}
       </CelestialBody>
       <Billboard position={[0, 2.5, 0]}>
         {!isFocused && data.label && <Suspense fallback={null}><Text fontSize={0.7} color="white" fillOpacity={isHovered ? 1 : 0.6}>{String(data.label)}</Text></Suspense>}
       </Billboard>
       {data.children?.map(planet => (
-        <OrbitGroup key={planet.id} data={planet} offset={[0,0,0]}>
+        <OrbitGroup key={planet.id} data={planet} offset={[0, 0, 0]}>
           <CelestialBody data={planet} onClick={onSelect}>
             <sphereGeometry args={[planet.size, 12, 12]} />
             <meshStandardMaterial color={planet.color} emissive={planet.color} emissiveIntensity={1} />
             {planet.erosion! >= 1.0 && <MicrotonalCrystals amount={planet.erosion!} color={planet.color} />}
           </CelestialBody>
           {planet.children?.map(sat => (
-            <OrbitGroup key={sat.id} data={sat} offset={[0,0,0]}>
+            <OrbitGroup key={sat.id} data={sat} offset={[0, 0, 0]}>
               <CelestialBody data={sat} onClick={onSelect}>
                 <sphereGeometry args={[sat.size, 8, 8]} />
                 <meshStandardMaterial color={sat.color} emissive={sat.color} emissiveIntensity={2} />
@@ -729,7 +891,7 @@ function StarObj({ data, offset, focusId, onSelect }: { data: EntityData, offset
       ))}
     </OrbitGroup>
   );
-}
+});
 
 // Instanced star renderer - groups stars by geometry type for optimal performance
 function InstancedStarRenderer({
@@ -772,7 +934,7 @@ function InstancedStarRenderer({
   );
 }
 
-function FloatingMeteor({ data, onSelect }: { data: EntityData, onSelect: (id: string) => void }) {
+const FloatingMeteor = React.memo(function FloatingMeteor({ data, onSelect }: { data: EntityData, onSelect: (id: string) => void }) {
   const ref = useRef<THREE.Group>(null);
   const refMap = useContext(RefContext);
   const hoverCtx = useContext(HoverContext);
@@ -784,22 +946,37 @@ function FloatingMeteor({ data, onSelect }: { data: EntityData, onSelect: (id: s
   }, [data.id, refMap]);
 
   useFrame(({ clock }) => {
-    if(!ref.current) return;
+    if (!ref.current) return;
     const t = clock.getElapsedTime() * data.speed + data.phase;
     ref.current.position.set(Math.cos(t) * data.distance, Math.sin(t * 0.3) * 50, Math.sin(t) * data.distance);
     ref.current.rotation.y += 0.005;
   });
 
+  const handleClick = React.useCallback((e: any) => {
+    e.stopPropagation();
+    onSelect(data.id);
+  }, [onSelect, data.id]);
+
+  const handlePointerOver = React.useCallback(() => {
+    hoverCtx?.setHoveredId(data.id);
+    document.body.style.cursor = 'pointer';
+  }, [hoverCtx, data.id]);
+
+  const handlePointerOut = React.useCallback(() => {
+    hoverCtx?.setHoveredId(null);
+    document.body.style.cursor = 'auto';
+  }, [hoverCtx]);
+
   return (
     <group ref={ref}>
-      <mesh onClick={(e) => { e.stopPropagation(); onSelect(data.id); }} onPointerOver={() => { hoverCtx?.setHoveredId(data.id); document.body.style.cursor = 'pointer'; }} onPointerOut={() => { hoverCtx?.setHoveredId(null); document.body.style.cursor = 'auto'; }}>
+      <mesh onClick={handleClick} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
         <dodecahedronGeometry args={[data.size, 0]} />
         <meshBasicMaterial color={data.erosion! > 0.8 ? "#aaaaff" : "#555"} wireframe transparent opacity={isHovered ? 1.0 : 0.5} />
       </mesh>
       {isHovered && <Billboard position={[0, 1.5, 0]}><Text fontSize={0.5} color="white">{data.id}</Text></Billboard>}
     </group>
   );
-}
+});
 
 // カメラ制御コンポーネント
 const ExplorationCamera = forwardRef(({ focusId, mode, activeCamSlot, cameraSlots, onManualMove, isSearchFocused, onCameraUpdate }: { focusId: string | null, mode: string, activeCamSlot: number | null, cameraSlots: CameraSlot[], onManualMove: () => void, isSearchFocused?: boolean, onCameraUpdate?: (pos: { x: number, y: number, z: number }) => void }, ref) => {
@@ -820,7 +997,7 @@ const ExplorationCamera = forwardRef(({ focusId, mode, activeCamSlot, cameraSlot
       targetVec.current.copy(slot.target);
       cameraVec.current.copy(slot.pos);
     }
-  }, []);
+  }, [activeCamSlot, cameraSlots, camera, controls]);
 
   useImperativeHandle(ref, () => ({
     getCurrentView: () => ({
@@ -842,7 +1019,7 @@ const ExplorationCamera = forwardRef(({ focusId, mode, activeCamSlot, cameraSlot
       onManualMove();
       orbit.enabled = false;
       const speed = 200 * delta; // Speed increased for inter-universe travel
-      
+
       const front = new THREE.Vector3();
       camera.getWorldDirection(front);
       front.y = 0; front.normalize();
@@ -854,11 +1031,11 @@ const ExplorationCamera = forwardRef(({ focusId, mode, activeCamSlot, cameraSlot
       if (left) move.sub(side); if (right) move.add(side);
       if (up) move.y += 1; if (down) move.y -= 1;
       if (Math.abs(joyX) > 0.1 || Math.abs(joyY) > 0.1) move.add(front.clone().multiplyScalar(joyY)).add(side.clone().multiplyScalar(joyX));
-      
+
       const displacement = move.multiplyScalar(speed);
       camera.position.add(displacement);
       orbit.target.add(displacement);
-      
+
       targetVec.current.copy(orbit.target);
       cameraVec.current.copy(camera.position);
       return;
@@ -867,18 +1044,23 @@ const ExplorationCamera = forwardRef(({ focusId, mode, activeCamSlot, cameraSlot
       if (!focusId && activeCamSlot === null && mode !== 'DNA') {
         targetVec.current.copy(orbit.target);
         cameraVec.current.copy(camera.position);
-        return; 
+        return;
       }
     }
 
     if (mode === 'DNA') {
-      targetVec.current.set(0, 0, 0); 
+      targetVec.current.set(0, 0, 0);
       cameraVec.current.set(0, 0, 45);
-    } 
+    }
     else if (mode === 'LAB') {
       // Lab Universe (Center)
-      targetVec.current.set(1000, 0, 0); 
-      cameraVec.current.set(1000, 100, 300); 
+      targetVec.current.set(1000, 0, 0);
+      cameraVec.current.set(1000, 100, 300);
+    }
+    else if (mode === 'MULTIVERSE') {
+      // Multiverse Hub - Overview position
+      targetVec.current.set(0, 0, 0);
+      cameraVec.current.set(0, 250, 400);
     }
     else if (activeCamSlot !== null && cameraSlots[activeCamSlot]) {
       const slot = cameraSlots[activeCamSlot];
@@ -890,7 +1072,7 @@ const ExplorationCamera = forwardRef(({ focusId, mode, activeCamSlot, cameraSlot
       targetVec.current.copy(worldPos.current);
       let dist = mode === 'PLANET' ? 6 : mode === 'SATELLITE' ? 4 : 12;
       cameraVec.current.copy(worldPos.current).add(new THREE.Vector3(0, dist * 0.6, dist));
-    } 
+    }
 
     orbit.target.lerp(targetVec.current, 0.1);
     state.camera.position.lerp(cameraVec.current, 0.08);
@@ -939,15 +1121,20 @@ export default function Home() {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [setlist, setSetlist] = useState<string[]>([]);
-  
-  const [currentMode, setCurrentMode] = useState<'UNIVERSE' | 'STAR' | 'PLANET' | 'SATELLITE' | 'DNA' | 'LAB'>('DNA');
+
+  const [currentMode, setCurrentMode] = useState<'UNIVERSE' | 'STAR' | 'PLANET' | 'SATELLITE' | 'DNA' | 'LAB' | 'MULTIVERSE'>('DNA');
   const [prevMode, setPrevMode] = useState<'UNIVERSE' | 'STAR' | 'PLANET' | 'SATELLITE'>('UNIVERSE');
   const [prevFocusId, setPrevFocusId] = useState<string | null>(null);
-  
+
+  // Multiverse Hub state
+  const [isWarping, setIsWarping] = useState(false);
+  const [warpProgress, setWarpProgress] = useState(0);
+  const [warpTargetUniverse, setWarpTargetUniverse] = useState<number | null>(null);
+
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [joystickVector, setJoystickVector] = useState(new THREE.Vector2(0, 0));
-  
+
   const [filterCategory, setFilterCategory] = useState<string>('ALL');
   const [sortType, setSortType] = useState<'ID' | 'EROSION' | 'SIZE'>('ID');
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC');
@@ -984,8 +1171,8 @@ export default function Home() {
       star.children?.forEach(planet => { list.push(planet); planet.children?.forEach(sat => list.push(sat)); });
     });
     microGalaxyData.forEach(star => {
-        list.push(star);
-        star.children?.forEach(planet => { list.push(planet); planet.children?.forEach(sat => list.push(sat)); });
+      list.push(star);
+      star.children?.forEach(planet => { list.push(planet); planet.children?.forEach(sat => list.push(sat)); });
     });
     return list.find(d => d.id === (focusId || hoveredId));
   }, [focusId, hoveredId, galaxyData, microGalaxyData, floatingMeteors]);
@@ -1004,22 +1191,28 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleHUDToggle);
   }, [isSearchFocused]);
 
-  // Multiverse mode toggle (M key)
+  // Multiverse mode toggle (M key) - Enhanced with MULTIVERSE mode
   useEffect(() => {
     const handleMultiverseToggle = (e: KeyboardEvent) => {
       if ((e.key === 'm' || e.key === 'M') && !isSearchFocused) {
-        if (activeCamSlot === 3) {
-          // If already in multiverse view, return to previous slot
-          setActiveCamSlot(0);
+        if (currentMode === 'MULTIVERSE') {
+          // Exit multiverse hub, return to previous mode
+          setCurrentMode(prevMode);
+          setFocusId(prevFocusId);
+          setActiveCamSlot(currentGalaxy);
         } else {
-          // Switch to multiverse view (slot 3)
-          setActiveCamSlot(3);
+          // Enter multiverse hub
+          setPrevMode(currentMode as any);
+          setPrevFocusId(focusId);
+          setCurrentMode('MULTIVERSE');
+          setFocusId(null);
+          setActiveCamSlot(null);
         }
       }
     };
     window.addEventListener('keydown', handleMultiverseToggle);
     return () => window.removeEventListener('keydown', handleMultiverseToggle);
-  }, [activeCamSlot, isSearchFocused]);
+  }, [currentMode, prevMode, focusId, prevFocusId, isSearchFocused, currentGalaxy]);
 
   // Pointer lock state monitoring
   useEffect(() => {
@@ -1030,18 +1223,6 @@ export default function Home() {
     document.addEventListener('pointerlockchange', handlePointerLockChange);
     return () => document.removeEventListener('pointerlockchange', handlePointerLockChange);
   }, []);
-
-  // Handle click to select targeted entity in FPV mode
-  useEffect(() => {
-    const handleClick = () => {
-      if (isPointerLocked && targetedEntityId) {
-        handleNavigate(targetedEntityId);
-      }
-    };
-
-    window.addEventListener('click', handleClick);
-    return () => window.removeEventListener('click', handleClick);
-  }, [isPointerLocked, targetedEntityId]);
 
   const handleShepherdSignal = () => {
     if (floatingMeteors.length === 0) return;
@@ -1081,9 +1262,9 @@ export default function Home() {
       if (star.id === targetId) {
         const newPlanet: EntityData = {
           id: `${star.id}-Genesis-${Date.now().toString().slice(-4)}`,
-          type: 'planet', label: `Ref_P_${Math.floor(Math.random()*99)}`,
+          type: 'planet', label: `Ref_P_${Math.floor(Math.random() * 99)}`,
           color: meteor.erosion! > 0.8 ? "#ff00ff" : "#00ffff", size: 0.3, distance: 12 + Math.random() * 5,
-          speed: 0.3, inclination: [(Math.random()-0.5)*0.5, 0, (Math.random()-0.5)*0.5], phase: 0,
+          speed: 0.3, inclination: [(Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5], phase: 0,
           category: 'Genesis', erosion: meteor.erosion, children: []
         };
         return { ...star, children: [...(star.children || []), newPlanet], erosion: Math.min((star.erosion || 0) + 0.1, 1.0) };
@@ -1101,8 +1282,8 @@ export default function Home() {
   };
   const handleTouchEnd = () => { if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current); };
 
-  const handleJoystickMove = (e: React.TouchEvent) => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); const t = e.touches[0]; const dx = t.clientX - (rect.left + rect.width/2); const dy = t.clientY - (rect.top + rect.height/2); const dist = Math.min(rect.width/2, Math.sqrt(dx*dx+dy*dy)); const a = Math.atan2(dy, dx); setJoystickVector(new THREE.Vector2(Math.cos(a)*dist/(rect.width/2), -Math.sin(a)*dist/(rect.width/2))); };
-  
+  const handleJoystickMove = (e: React.TouchEvent) => { const rect = (e.currentTarget as HTMLElement).getBoundingClientRect(); const t = e.touches[0]; const dx = t.clientX - (rect.left + rect.width / 2); const dy = t.clientY - (rect.top + rect.height / 2); const dist = Math.min(rect.width / 2, Math.sqrt(dx * dx + dy * dy)); const a = Math.atan2(dy, dx); setJoystickVector(new THREE.Vector2(Math.cos(a) * dist / (rect.width / 2), -Math.sin(a) * dist / (rect.width / 2))); };
+
   const flattenedData = useMemo(() => {
     const list: EntityData[] = [...SHARD_DATA, ...floatingMeteors];
     galaxyData.forEach(star => {
@@ -1110,8 +1291,8 @@ export default function Home() {
       star.children?.forEach(planet => { list.push(planet); planet.children?.forEach(sat => list.push(sat)); });
     });
     microGalaxyData.forEach(star => {
-        list.push(star);
-        star.children?.forEach(planet => { list.push(planet); planet.children?.forEach(sat => list.push(sat)); });
+      list.push(star);
+      star.children?.forEach(planet => { list.push(planet); planet.children?.forEach(sat => list.push(sat)); });
     });
     return list;
   }, [galaxyData, microGalaxyData, floatingMeteors]);
@@ -1133,18 +1314,30 @@ export default function Home() {
     });
   }, [searchQuery, flattenedData, filterCategory, sortType, sortOrder]);
 
-  const handleNavigate = (id: string) => {
+  const handleNavigate = React.useCallback((id: string) => {
     const entity = flattenedData.find(e => e.id === id);
     if (!entity) return;
     setFocusId(entity.id);
-    setActiveCamSlot(null); 
+    setActiveCamSlot(null);
     if (entity.type === 'star') setCurrentMode('STAR');
     else if (entity.type === 'planet') setCurrentMode('PLANET');
     else if (entity.type === 'satellite') setCurrentMode('SATELLITE');
     else if (entity.type === 'relic') setCurrentMode('SATELLITE');
-    else if (entity.type === 'meteor') setCurrentMode('SATELLITE'); 
+    else if (entity.type === 'meteor') setCurrentMode('SATELLITE');
     if (typeof window !== "undefined" && window.innerWidth < 768) setActiveMobileTab('analysis');
-  };
+  }, [flattenedData]);
+
+  // Handle click to select targeted entity in FPV mode
+  useEffect(() => {
+    const handleClick = () => {
+      if (isPointerLocked && targetedEntityId) {
+        handleNavigate(targetedEntityId);
+      }
+    };
+
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [isPointerLocked, targetedEntityId, handleNavigate]);
 
   const toggleDNAMode = () => {
     if (currentMode !== 'DNA') { setPrevMode(currentMode as any); setPrevFocusId(focusId); setCurrentMode('DNA'); setFocusId(null); setActiveCamSlot(null); }
@@ -1152,16 +1345,16 @@ export default function Home() {
   };
 
   const toggleLABMode = () => {
-    if (currentMode !== 'LAB') { 
-      setPrevMode(currentMode as any); 
-      setPrevFocusId(focusId); 
-      setCurrentMode('LAB'); 
-      setFocusId(null); 
-      setActiveCamSlot(null); 
+    if (currentMode !== 'LAB') {
+      setPrevMode(currentMode as any);
+      setPrevFocusId(focusId);
+      setCurrentMode('LAB');
+      setFocusId(null);
+      setActiveCamSlot(null);
     }
-    else { 
-      setCurrentMode(prevMode as any); 
-      setFocusId(prevFocusId); 
+    else {
+      setCurrentMode(prevMode as any);
+      setFocusId(prevFocusId);
     }
   };
 
@@ -1171,6 +1364,37 @@ export default function Home() {
     else setCurrentMode('UNIVERSE');
     setActiveCamSlot(index);
   };
+
+  // Cinematic warp to universe
+  const warpToUniverse = React.useCallback((universeId: number) => {
+    setIsWarping(true);
+    setWarpTargetUniverse(universeId);
+    setWarpProgress(0);
+
+    // Animate warp progress
+    const startTime = Date.now();
+    const duration = 2000; // 2 seconds
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1.0);
+
+      setWarpProgress(progress);
+
+      if (progress < 1.0) {
+        requestAnimationFrame(animate);
+      } else {
+        // Warp complete
+        setIsWarping(false);
+        setCurrentMode('UNIVERSE');
+        setCurrentGalaxy(universeId);
+        setActiveCamSlot(universeId);
+        setWarpTargetUniverse(null);
+      }
+    };
+
+    animate();
+  }, []);
 
   const requestSaveSlot = (index: number) => {
     setSaveConfirmation(index);
@@ -1279,86 +1503,90 @@ export default function Home() {
                   <pointLight position={[0, 0, 0]} intensity={10} color="#ffaa00" distance={500} />
                   <Suspense fallback={null}><Environment path="https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/" files="potsdamer_platz_1k.hdr" /></Suspense>
 
-                  {/* Deep Space Stars with erosion-based temperature */}
-                  <Stars
-                    radius={1500}
-                    depth={200}
-                    count={8000}
-                    factor={6}
-                    saturation={0.3}
-                    fade
-                    speed={0.3}
-                  />
-
-                  {/* Procedural Nebula */}
-                  <DeepSpaceNebula count={5000} radius={2000} erosion={globalErosion} />
-
-                  <Sparkles count={10000} scale={[800, 200, 800]} size={4} speed={0.05} opacity={0.4} />
-                  
-                  {/* Universe 1 Grid (Original) */}
-                  <Grid position={[0, -50, 0]} args={[1000, 1000]} cellColor="#111" sectionColor="#222" fadeDistance={800} />
-                  
-                  {/* Universe 2 Grid (Microtonal) */}
-                  <Grid position={[2000, -50, 0]} args={[1000, 1000]} cellColor="#330033" sectionColor="#660066" fadeDistance={800} />
-
-                  {/* Universe 3 Grid (Lab) */}
-                  <Grid position={[1000, -50, 0]} args={[500, 500]} cellColor="#00ffff" sectionColor="#008888" fadeDistance={300} />
+                  {/* Deep Space Stars - Only for Nascent Universe */}
+                  <group position={[1000, 0, 1000]}>
+                    <Stars
+                      radius={500}
+                      depth={100}
+                      count={3000}
+                      factor={6}
+                      saturation={0.3}
+                      fade
+                      speed={0.3}
+                    />
+                    <DeepSpaceNebula count={2000} radius={800} erosion={globalErosion} />
+                    <Sparkles count={3000} scale={[300, 100, 300]} size={4} speed={0.05} opacity={0.4} />
+                  </group>
 
                   <LiquidMetalDNA onClick={toggleDNAMode} erosion={targetEntity?.erosion} />
 
-                  {/* Galaxy 1 - Original Universe */}
-                  {OPTIMIZATION_FLAGS.ENABLE_INSTANCED_STARS ? (
-                    <InstancedStarRenderer
-                      stars={galaxyData}
-                      offset={[0, 0, 0]}
-                      focusId={focusId}
-                      hoveredId={hoveredId}
-                      onSelect={handleNavigate}
-                      onHover={setHoveredId}
+                  {/* Multiverse Gate View - Show only in MULTIVERSE mode */}
+                  {currentMode === 'MULTIVERSE' && (
+                    <MultiverseGateView
+                      universes={UNIVERSES}
+                      onSelectUniverse={warpToUniverse}
+                      currentUniverseId={currentGalaxy}
                     />
-                  ) : (
-                    <group>{galaxyData.map(star => <StarObj key={star.id} data={star} offset={[0,0,0]} focusId={focusId} onSelect={handleNavigate} />)}</group>
                   )}
 
-                  {/* Galaxy 2 (Microtonal) */}
-                  <group position={[2000, 0, 0]}>
-                    <DNACore position={[0, 0, 0]} erosion={globalErosion} isMultiverseView={activeCamSlot === 3} />
-                    {OPTIMIZATION_FLAGS.ENABLE_INSTANCED_STARS ? (
-                      <InstancedStarRenderer
-                        stars={microGalaxyData}
-                        offset={[2000, 0, 0]}
-                        focusId={focusId}
-                        hoveredId={hoveredId}
-                        onSelect={handleNavigate}
-                        onHover={setHoveredId}
-                      />
-                    ) : (
-                      microGalaxyData.map(star => <StarObj key={star.id} data={star} offset={[0,0,0]} focusId={focusId} onSelect={handleNavigate} />)
-                    )}
-                  </group>
-
-                  {/* Galaxy 3 (Nascent) - The Unformed Universe */}
-                  <group position={[1000, 0, 1000]}>
-                    <NascentCore position={[0, 0, 0]} tendency={tendency} />
-                    <HoverContext.Provider value={{ hoveredId, setHoveredId }}>
-                      {nascentGalaxyData.map(star => (
-                        <NascentStar
-                          key={star.id}
-                          data={star}
+                  {/* Galaxies - Hide in MULTIVERSE mode */}
+                  {currentMode !== 'MULTIVERSE' && (
+                    <>
+                      {/* Galaxy 1 - Original Universe */}
+                      {OPTIMIZATION_FLAGS.ENABLE_INSTANCED_STARS ? (
+                        <InstancedStarRenderer
+                          stars={galaxyData}
                           offset={[0, 0, 0]}
-                          tendency={tendency}
                           focusId={focusId}
+                          hoveredId={hoveredId}
                           onSelect={handleNavigate}
-                          hoverCtx={{ hoveredId, setHoveredId }}
+                          onHover={setHoveredId}
                         />
-                      ))}
-                    </HoverContext.Provider>
-                  </group>
+                      ) : (
+                        <group>{galaxyData.map(star => <StarObj key={star.id} data={star} offset={[0, 0, 0]} focusId={focusId} onSelect={handleNavigate} />)}</group>
+                      )}
 
-                  <group>{SHARD_DATA.map(shard => <QuestionShard key={shard.id} data={shard} onSelect={handleNavigate} />)}</group>
-                  <group>{floatingMeteors.map(meteor => <FloatingMeteor key={meteor.id} data={meteor} onSelect={handleNavigate} />)}</group>
-                  {fallingMeteors.map((item) => <FallingMeteor key={`falling-${item.meteorData.id}`} data={item.meteorData} targetId={item.targetId} onImpact={handleMeteorImpact} />)}
-                  
+                      {/* Galaxy 2 (Microtonal) */}
+                      <group position={[2000, 0, 0]}>
+                        <DNACore position={[0, 0, 0]} erosion={globalErosion} isMultiverseView={activeCamSlot === 3} />
+                        {OPTIMIZATION_FLAGS.ENABLE_INSTANCED_STARS ? (
+                          <InstancedStarRenderer
+                            stars={microGalaxyData}
+                            offset={[2000, 0, 0]}
+                            focusId={focusId}
+                            hoveredId={hoveredId}
+                            onSelect={handleNavigate}
+                            onHover={setHoveredId}
+                          />
+                        ) : (
+                          microGalaxyData.map(star => <StarObj key={star.id} data={star} offset={[0, 0, 0]} focusId={focusId} onSelect={handleNavigate} />)
+                        )}
+                      </group>
+
+                      {/* Galaxy 3 (Nascent) - The Unformed Universe */}
+                      <group position={[1000, 0, 1000]}>
+                        <NascentCore position={[0, 0, 0]} tendency={tendency} />
+                        <HoverContext.Provider value={{ hoveredId, setHoveredId }}>
+                          {nascentGalaxyData.map(star => (
+                            <NascentStar
+                              key={star.id}
+                              data={star}
+                              offset={[0, 0, 0]}
+                              tendency={tendency}
+                              focusId={focusId}
+                              onSelect={handleNavigate}
+                              hoverCtx={{ hoveredId, setHoveredId }}
+                            />
+                          ))}
+                        </HoverContext.Provider>
+                      </group>
+
+                      <group>{SHARD_DATA.map(shard => <QuestionShard key={shard.id} data={shard} onSelect={handleNavigate} />)}</group>
+                      <group>{floatingMeteors.map(meteor => <FloatingMeteor key={meteor.id} data={meteor} onSelect={handleNavigate} />)}</group>
+                      {fallingMeteors.map((item) => <FallingMeteor key={`falling-${item.meteorData.id}`} data={item.meteorData} targetId={item.targetId} onImpact={handleMeteorImpact} />)}
+                    </>
+                  )}
+
                   {impactEvents.map(evt => <ImpactEffect key={evt.id} position={evt.position} color={evt.color} />)}
 
                   {/* Gravity Quakes */}
@@ -1398,25 +1626,35 @@ export default function Home() {
                     refMap={refMap}
                   />
 
+                  {/* Warp Camera Transition - FOV animation during universe warp */}
+                  {isWarping && warpTargetUniverse !== null && (
+                    <WarpCameraTransition
+                      isWarping={isWarping}
+                      targetPosition={
+                        warpTargetUniverse !== null
+                          ? new THREE.Vector3(...UNIVERSES[warpTargetUniverse].pos)
+                          : null
+                      }
+                      onComplete={() => {
+                        // Already handled in warpToUniverse callback
+                      }}
+                    />
+                  )}
+
                   <EffectComposer>
-                    {/* Bloom: プロ仕様のため一時停止（誤魔化しを消す） */}
-                    {/* <Bloom intensity={0.3} luminanceThreshold={0.2} /> */}
-
-                    {/* Scanline: erosionに直結、シャープな質感 */}
+                    <WarpEffect isWarping={isWarping} warpProgress={warpProgress} />
                     <Scanline opacity={globalErosion * 0.25} density={2.0} />
-
-                    {/* Glitch: erosion高時に有効化、強度を3倍に増強 */}
                     <Glitch
                       active={globalErosion > 0.7 || currentMode === 'DNA'}
                       duration={new THREE.Vector2(0.08, 0.15)}
                       strength={new THREE.Vector2(0.3, 0.4)}
                       mode={GlitchMode.SPORADIC}
                     />
-
-                    {/* ChromaticAberration: erosionに強く反応（感度2倍）+ Nascent Core proximity effect */}
-                    <DynamicChromaticAberration erosion={globalErosion} tendency={tendency} cameraPosition={cameraPosition} />
-
-                    {/* Noise & Vignette: 変更なし */}
+                    <DynamicChromaticAberration
+                      erosion={globalErosion}
+                      tendency={tendency}
+                      cameraPosition={cameraPosition}
+                    />
                     <Noise opacity={0.1} premultiply blendFunction={BlendFunction.SOFT_LIGHT} />
                     <Vignette darkness={0.8} offset={0.2} />
                   </EffectComposer>
@@ -1429,6 +1667,15 @@ export default function Home() {
                 targetLabel={targetEntity?.label}
                 isLocked={isPointerLocked}
               />
+
+              {/* Multiverse Selector Dock - Always visible except in DNA/LAB mode */}
+              {currentMode !== 'DNA' && currentMode !== 'LAB' && (
+                <MultiverseSelectorDock
+                  universes={UNIVERSES}
+                  currentUniverseId={currentGalaxy}
+                  onSelectUniverse={warpToUniverse}
+                />
+              )}
 
               {/* Galaxy Navigator - Visible in UNIVERSE mode */}
               {showTerminal && currentMode === 'UNIVERSE' && (
@@ -1445,7 +1692,7 @@ export default function Home() {
                   <div className="text-[8px] text-cyan-500 font-black tracking-widest mr-2 border-r border-cyan-900 pr-4 h-full flex items-center">CAM_MEM</div>
                   {cameraSlots.map((slot, i) => (
                     <div key={i} className="relative group">
-                      <button 
+                      <button
                         onClick={() => activateSlot(i)}
                         className={`w-8 h-8 rounded flex items-center justify-center text-[10px] font-bold transition-all border ${activeCamSlot === i ? 'bg-cyan-500 text-black border-cyan-400 shadow-[0_0_10px_rgba(0,255,255,0.5)]' : 'bg-gray-900/50 text-gray-400 border-gray-700 hover:border-cyan-500 hover:text-white'}`}
                       >
@@ -1491,7 +1738,7 @@ export default function Home() {
                 <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in pointer-events-auto">
                   <div className="bg-gray-900 border border-cyan-500 p-8 text-center shadow-2xl max-w-sm">
                     <div className="text-cyan-400 font-black text-lg mb-4 tracking-widest">OVERWRITE_SLOT_DATA?</div>
-                    <p className="text-xs text-gray-400 mb-8">SLOT {saveConfirmation + 1} の現在の画角データを上書きします。<br/>この操作は取り消せません。</p>
+                    <p className="text-xs text-gray-400 mb-8">SLOT {saveConfirmation + 1} の現在の画角データを上書きします。<br />この操作は取り消せません。</p>
                     <div className="flex gap-4 justify-center">
                       <button onClick={confirmSaveSlot} className="bg-cyan-500 text-black font-bold px-6 py-2 hover:bg-cyan-400 transition-all uppercase text-xs tracking-widest">Confirm</button>
                       <button onClick={() => setSaveConfirmation(null)} className="border border-gray-600 text-gray-400 font-bold px-6 py-2 hover:text-white transition-all uppercase text-xs tracking-widest">Cancel</button>
@@ -1512,7 +1759,7 @@ export default function Home() {
                       EXIT LAB [L]
                     </button>
                   </div>
-                  
+
                   {/* Bottom Inventory */}
                   <div className="absolute bottom-0 w-full p-6 bg-gradient-to-t from-black via-black/90 to-transparent pointer-events-auto">
                     <div className="text-[9px] text-gray-500 font-black tracking-widest mb-3 uppercase">Sample_Inventory ({labInventory.length})</div>
@@ -1558,7 +1805,7 @@ export default function Home() {
                 <>
                   <div className={`absolute z-30 pointer-events-auto flex flex-col transition-all duration-700 ease-[cubic-bezier(0.22,1,0.36,1)] md:top-10 md:left-8 md:bottom-36 md:w-80 md:bg-black/80 md:border md:border-cyan-900/40 md:backdrop-blur-xl top-28 left-0 w-full bottom-32 bg-black/60 backdrop-blur-lg ${(activeMobileTab !== 'explorer' && typeof window !== "undefined" && window.innerWidth < 768) ? 'opacity-0 pointer-events-none translate-x-[-10px]' : 'opacity-100'}`}>
                     <div className="p-5 border-b border-gray-800 bg-gray-900/40 text-cyan-500 text-[10px] font-black tracking-[0.3em] uppercase hidden md:block">Archive_Explorer</div>
-                    
+
                     {/* ... (Filter & Sort UI) ... */}
                     <div className="p-4 border-b border-gray-800 bg-black/40 flex gap-3">
                       <div className="relative flex-1">
@@ -1600,7 +1847,7 @@ export default function Home() {
                           <li key={entity.id} className="group border-b border-gray-900/50 pb-3 last:border-0">
                             <div className="flex items-center p-1">
                               <span className={`w-2 h-2 rounded-full mr-3 ${entity.erosion! > 0.5 ? 'animate-pulse' : 'shadow-cyan'}`} style={{ backgroundColor: entity.color || '#fff' }}></span>
-                              <button onClick={() => handleNavigate(entity.id)} className={`flex-1 text-left py-2 truncate transition-all duration-300 ${focusId === entity.id ? 'text-cyan-400 font-black scale-105 origin-left' : 'text-gray-400 hover:text-white'}`}>{entity.label} <span className="text-[8px] text-gray-600 ml-2">[{entity.type.substring(0,3).toUpperCase()}]</span></button>
+                              <button onClick={() => handleNavigate(entity.id)} className={`flex-1 text-left py-2 truncate transition-all duration-300 ${focusId === entity.id ? 'text-cyan-400 font-black scale-105 origin-left' : 'text-gray-400 hover:text-white'}`}>{entity.label} <span className="text-[8px] text-gray-600 ml-2">[{entity.type.substring(0, 3).toUpperCase()}]</span></button>
                               {/* PICK Button */}
                               <button
                                 onClick={(e) => {
