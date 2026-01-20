@@ -45,7 +45,7 @@ export const LIVE_EVENTS = [
  */
 export const PROFILE_DATA = {
     name: "Kpia",
-    ver: "26.2.0 (Reality Distortion System)",
+    ver: "26.3.0 (Reality Distortion System)",
     bio: "整理、ハック、そして逸脱。\n秩序あるノイズを構築する。",
 };
 

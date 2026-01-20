@@ -473,7 +473,7 @@ export default function Home() {
                     fade
                     speed={0.3}
                   />
-                  <DeepSpaceNebula count={2000} radius={800} erosion={erosion} />
+                  <DeepSpaceNebula count={2000} radius={800} erosion={erosion} isActive={currentMode !== 'MULTIVERSE'} />
                   <Sparkles count={3000} scale={[300, 100, 300]} size={4} speed={0.05} opacity={0.4} />
                 </group>
 
@@ -485,6 +485,7 @@ export default function Home() {
                     universes={UNIVERSES}
                     onSelectUniverse={warpToUniverse}
                     currentUniverseId={currentGalaxy}
+                    isHudVisible={isHudVisible}
                   />
                 )}
 

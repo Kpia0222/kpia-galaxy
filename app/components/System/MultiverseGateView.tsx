@@ -46,12 +46,14 @@ interface MultiverseGateViewProps {
   universes: Universe[];                  // 表示する宇宙の配列
   onSelectUniverse: (id: number) => void; // 宇宙選択時のコールバック
   currentUniverseId: number | null;       // 現在選択されている宇宙ID
+  isHudVisible?: boolean;                 // HUD表示状態 (Stealth Mode対応)
 }
 
 export default function MultiverseGateView({
   universes,
   onSelectUniverse,
   currentUniverseId,
+  isHudVisible = true,
 }: MultiverseGateViewProps) {
   const groupRef = useRef<THREE.Group>(null);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
@@ -100,6 +102,7 @@ export default function MultiverseGateView({
             position={orbPositions[index]}
             isHovered={hoveredId === universe.id}
             isTransitioning={isTransitioning}
+            showLabel={isHudVisible}
             onHover={() => setHoveredId(universe.id)}
             onUnhover={() => setHoveredId(null)}
             onClick={() => handleOrbClick(universe.id)}
@@ -134,17 +137,19 @@ export default function MultiverseGateView({
                 />
               </mesh>
 
-              {/* 空スロットのラベル */}
-              <Html position={[0, -2, 0]} center>
-                <div className="text-center pointer-events-none opacity-30">
-                  <div className="font-mono text-[8px] text-zinc-600 tracking-widest">
-                    SLOT_{emptyIndex + 1}
+              {/* 空スロットのラベル (HUD表示時のみ) */}
+              {isHudVisible && (
+                <Html position={[0, -2, 0]} center>
+                  <div className="text-center pointer-events-none opacity-30">
+                    <div className="font-mono text-[8px] text-zinc-600 tracking-widest">
+                      SLOT_{emptyIndex + 1}
+                    </div>
+                    <div className="text-[6px] text-zinc-700 tracking-wider mt-0.5">
+                      [UNOBSERVED]
+                    </div>
                   </div>
-                  <div className="text-[6px] text-zinc-700 tracking-wider mt-0.5">
-                    [UNOBSERVED]
-                  </div>
-                </div>
-              </Html>
+                </Html>
+              )}
             </group>
           );
         })}
@@ -192,6 +197,7 @@ interface UniverseOrbProps {
   position: [number, number, number];
   isHovered: boolean;
   isTransitioning: boolean;
+  showLabel: boolean;
   onHover: () => void;
   onUnhover: () => void;
   onClick: () => void;
@@ -202,6 +208,7 @@ function UniverseOrb({
   position,
   isHovered,
   isTransitioning,
+  showLabel,
   onHover,
   onUnhover,
   onClick,
@@ -261,27 +268,30 @@ function UniverseOrb({
       )}
 
       {/* UI Label */}
-      <Html position={[0, -2.5, 0]} center>
-        <div
-          className={`text-center transition-all duration-300 pointer-events-none ${isHovered ? "opacity-100 scale-110" : "opacity-70"
-            }`}
-        >
+      {/* UI Label (HUD表示時のみ) */}
+      {showLabel && (
+        <Html position={[0, -2.5, 0]} center>
           <div
-            className={`font-mono text-sm font-bold tracking-widest ${isHovered ? "text-white" : "text-gray-400"
+            className={`text-center transition-all duration-300 pointer-events-none ${isHovered ? "opacity-100 scale-110" : "opacity-70"
               }`}
-            style={{
-              textShadow: isHovered
-                ? `0 0 20px ${universe.color}, 0 0 40px ${universe.color}`
-                : "none",
-            }}
           >
-            {universe.name}
+            <div
+              className={`font-mono text-sm font-bold tracking-widest ${isHovered ? "text-white" : "text-gray-400"
+                }`}
+              style={{
+                textShadow: isHovered
+                  ? `0 0 20px ${universe.color}, 0 0 40px ${universe.color}`
+                  : "none",
+              }}
+            >
+              {universe.name}
+            </div>
+            <div className="text-[8px] text-gray-600 tracking-wider mt-1">
+              {universe.type.toUpperCase()}
+            </div>
           </div>
-          <div className="text-[8px] text-gray-600 tracking-wider mt-1">
-            {universe.type.toUpperCase()}
-          </div>
-        </div>
-      </Html>
+        </Html>
+      )}
     </group>
   );
 }

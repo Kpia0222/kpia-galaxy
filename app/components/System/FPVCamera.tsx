@@ -248,15 +248,19 @@ const FPVCamera = forwardRef<FPVCameraHandle, FPVCameraProps>(
       return () => gl.domElement.removeEventListener("click", handleClick);
     }, [gl.domElement]);
 
+    const isFPVMode = mode !== "MULTIVERSE" && mode !== "DNA" && mode !== "LAB";
+
     return (
       <>
-        <PointerLockControls
-          ref={controlsRef}
-          camera={camera}
-          domElement={gl.domElement}
-          makeDefault
-          pointerSpeed={0.5}
-        />
+        {isFPVMode && (
+          <PointerLockControls
+            ref={controlsRef}
+            camera={camera}
+            domElement={gl.domElement}
+            makeDefault
+            pointerSpeed={0.5}
+          />
+        )}
       </>
     );
   }

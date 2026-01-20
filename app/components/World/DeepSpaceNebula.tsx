@@ -11,7 +11,7 @@ interface DeepSpaceNebulaProps {
   erosion?: number;
 }
 
-export default function DeepSpaceNebula({ count = 5000, radius = 2000, erosion = 0 }: DeepSpaceNebulaProps) {
+export default function DeepSpaceNebula({ count = 5000, radius = 2000, erosion = 0, isActive = true }: DeepSpaceNebulaProps & { isActive?: boolean }) {
   const pointsRef = useRef<THREE.Points>(null);
 
   // Generate nebula positions with Perlin-like clustering
@@ -53,7 +53,7 @@ export default function DeepSpaceNebula({ count = 5000, radius = 2000, erosion =
 
   // Gentle rotation and pulsation
   useFrame((state) => {
-    if (pointsRef.current) {
+    if (pointsRef.current && isActive) {
       pointsRef.current.rotation.y = state.clock.getElapsedTime() * 0.01;
       pointsRef.current.rotation.x = Math.sin(state.clock.getElapsedTime() * 0.02) * 0.1;
 
